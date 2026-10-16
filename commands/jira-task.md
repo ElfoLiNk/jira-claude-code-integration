@@ -147,7 +147,7 @@ Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-done", args: "
 ### `auto <TASK-ID>`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-auto", args: "<TASK-ID>" })`
 
-`start → approach → impl → test → review`를 자동으로 연결하여 순차 실행. 이미 완료된 단계는 건너뜀. `merge/pr/done`은 포함하지 않음.
+다음 사람 게이트까지 자동 진행한다 — L2·L3는 approach 뒤 승인 대기에서, 승인 뒤에는 test-write → impl → verify 후 "리뷰 요청 준비됨"에서 멈춘다. draft 해제·머지·done은 포함하지 않는다.
 
 ### `loop [--skip <단계,...>]`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-loop", args: "<loop 이후의 전체 인자를 그대로 전달>" })`

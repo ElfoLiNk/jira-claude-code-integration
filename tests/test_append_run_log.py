@@ -75,12 +75,12 @@ class BuildEntryTest(unittest.TestCase):
             "fixAttempts": 0,
             "metrics": {"matchRate": 100, "criticalCount": 0, "warningCount": 0, "infoCount": 2},
         }
-        e = module.build_entry("MAE-453", result, {"breakdownLevel": "L1"}, "auto")
+        e = module.build_entry("MAE-453", result, {"level": "L1"}, "auto")
         self.assertEqual(e["taskId"], "MAE-453")
         self.assertEqual(e["kind"], "auto")
         self.assertEqual(e["stagesRun"], ["start", "approach", "impl", "review"])
         self.assertEqual(e["skipped"]["pdca"], ["test"])
-        self.assertEqual(e["breakdownLevel"], "L1")
+        self.assertEqual(e["level"], "L1")
         self.assertIsNone(e["failedStage"])
         self.assertIsNone(e["innerLoopIterations"])
         self.assertTrue(e["timestamp"].endswith("Z"))

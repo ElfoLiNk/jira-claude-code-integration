@@ -1,74 +1,69 @@
 ---
 name: jira-task-auto
-description: "Auto-execute the full Jira task workflow (start → approach → impl → test → review) sequentially. Triggers: jira-task auto, auto run; 자동 실행, 전체 워크플로 자동."
+description: "Auto-run a Jira task up to the next human gate — L2/L3 stop at plan approval, then test-write → impl → verify stops at 'ready for review'. Triggers: jira-task auto, auto run; 자동 실행, 전체 워크플로 자동."
 user-invocable: false
-argument-hint: "<TASK-ID> [--skip <단계,...>]"
+argument-hint: "<TASK-ID>"
 allowed-tools:
   - Read
   - Bash
   - Workflow
+  - AskUserQuestion
 ---
 
-# jira-task-auto: Auto-Execute Full Workflow
+# jira-task-auto: 다음 사람 게이트까지 자동 진행
 
 **Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Overview
 
-`start → approach → impl+test → review` 파이프라인을 **Workflow 스크립트**(`scripts/auto.workflow.js`)로 실행하는 thin launcher.
+`scripts/auto.workflow.js`를 Workflow로 실행하는 thin launcher다. 단계 순서·게이트·triage·fix loop는 스크립트가 결정론적으로 정하고, 이 스킬은 등급 확정·args 조립·호출·결과 렌더링만 한다.
 
-- 제어 흐름(단계 순서·게이트 판정·scope shortfall triage·fix loop 최대 2회)은 전부 스크립트가 결정론적으로 수행한다. 이 스킬은 인자 파싱, args 조립, Workflow 호출, 결과 렌더링만 담당.
-- 각 단계는 스크립트가 `agent()`(general-purpose)로 격리 실행 — 모델 차등(start haiku / approach opus / impl+test sonnet / review는 L1이면 sonnet, 그 외 opus)은 스크립트에 코드로 박혀 있다.
-- `merge`/`pr`/`done`은 포함하지 않음 (worktree 경계 + 외부 공개 행위).
-- 설계 근거: `tasks/auto-workflow-design.md`, triage 임계값 근거: `skills/jira-task-auto/refs/review-wrapper.md`.
+| 시작 상태 | 스크립트가 하는 일 | 멈추는 곳 |
+|---|---|---|
+| L1 | start → test-write → impl → verify(+fix) | 리뷰 요청 준비됨 |
+| L2·L3, 산출물 전 또는 승인 전 | start → approach | 승인 대기 (draft PR) |
+| L2·L3, plan 승인됨 | test-write(승인 확인) → impl → verify(+fix) | 리뷰 요청 준비됨 |
+
+- 단계마다 새 sub-agent라 test-write / impl / verify는 서로 다른 컨텍스트다. 모델: start haiku / approach opus / test-write·impl·fix sonnet / verify opus(L1 sonnet).
+- draft 해제·머지·done은 포함하지 않는다(사람 몫, 외부 공개 행위).
+- 설계: `tasks/sdlc-alignment-design.md` §8, triage 근거: `skills/jira-task-auto/refs/review-wrapper.md`.
 
 > Workflow 도구 호출은 이 스킬의 지시에 의한 것으로, 사용자가 `/jira-task auto`(또는 loop)를 실행한 것이 곧 옵트인이다.
 
-## Step 1: 인자 파싱
+## Step 1: Context 로드
 
-- `<TASK-ID>` 필수.
-- `--skip <단계,...>` 또는 자연어("test 스킵", "test 빼고") → `USER_SKIP_STEPS` 목록. 스킵 가능 단계: `approach`, `impl`, `test`, `review` (start는 스킵 불가). 유효하지 않은 단계명은 무시하고 경고 한 줄: `⚠ 알 수 없는 단계 '<X>'는 스킵 목록에서 제외됩니다.`
+cwd(worktree)의 `.jira-context.json`을 Read한다. `worktreePath`가 cwd와 다르면 중단하고 `cd <worktreePath>` 후 재실행을 안내한다.
 
-## Step 2: Context 로드 + args 조립
+## Step 2: 등급 확정 (main 세션)
 
-cwd(worktree)의 `.jira-context.json`을 `Read`로 읽어 다음을 조립한다:
+sub-agent는 사용자에게 물을 수 없으므로 등급은 여기서 정한다. context `level`이 있거나 `cachedIssue.labels`에 `sdlc-L*`가 있으면 건너뛴다. 없으면 `skills/_shared/sdlc-level.md`대로 판정·확정·기록(라벨·코멘트·`--patch level/riskSignals`)한다. 사용자가 확정하지 않으면 Workflow를 부르지 않고 멈춘다.
+
+## Step 3: 스크립트 lookup과 args
+
+`skills/_shared/script-lookup.md`를 Read하고 `SCRIPT_NAME="auto.workflow.js"`, `OUT_VAR="AUTO_WF_JS"`로 lookup한다. 디렉터리(`dirname`)가 `scriptsDir`다. 빈 값이면 중단: `❌ Auto 실행 불가: auto.workflow.js를 찾지 못했습니다. 플러그인 설치 상태를 확인하세요.`
 
 ```
-{ taskId, worktreePath, completedSteps, userSkipSteps,
-  breakdownLevel,        // 없으면 null
-  issueType,             // cachedIssue.issuetype 이름, 없으면 null
+{ taskId, worktreePath, completedSteps,
+  level,                 // Step 2에서 확정한 값
   ctxFiles: [<worktree ctx 절대경로>, <repoRoot aggregate 절대경로>],
-  scriptsDir }           // Step 3에서 해석한 auto.workflow.js의 디렉터리 절대경로 — stage agent가 lookup을 반복하지 않게 한다
+  scriptsDir }
 ```
 
-`worktreePath`가 cwd와 다르면 중단하고 안내: worktree로 이동 후 재실행 (`cd <worktreePath>`).
-
-## Step 3: 스크립트 lookup
-
-`skills/_shared/script-lookup.md`를 Read하고 `SCRIPT_NAME="auto.workflow.js"`, `OUT_VAR="AUTO_WF_JS"`로 lookup 블록을 실행한다. 해석된 경로의 디렉터리(`dirname`)가 `scriptsDir`다 — 같은 디렉터리에 `jira-context-update.py`, `detect-lint.sh` 등 공용 스크립트가 전부 있으므로 이 값 하나로 stage agent의 lookup 의식(Read·루프·확인 3~4회/단계)이 사라진다. 빈 값이면 중단:
+## Step 4: 실행
 
 ```
-❌ Auto 실행 불가: auto.workflow.js를 찾지 못했습니다. 플러그인 설치 상태를 확인하세요.
-```
-
-## Step 4: 실행 계획 표시 + Workflow 호출
-
-```
-🚀 Auto 모드: <TASK-ID>
-
+🚀 Auto 모드: <TASK-ID> (<level>)
 완료된 단계: <completedSteps 또는 "없음">
-건너뛸 단계 (사용자 요청): <USER_SKIP_STEPS 또는 "없음">
-남은 단계는 Workflow 스크립트가 순차 실행합니다 (PDCA 권고 자동 적용 — 사용자 명시 스킵이 우선).
+다음 사람 게이트까지 진행합니다.
 ```
 
-`Workflow({ scriptPath: "<AUTO_WF_JS>", args: <Step 2의 객체> })`를 호출하고 완료 notification을 기다린다. 완료 전에 결과를 예단하지 않는다.
+`Workflow({ scriptPath: "<AUTO_WF_JS>", args: <Step 3의 객체> })`를 호출하고 완료 notification을 기다린다. 결과를 예단하지 않는다.
 
-호출이 `scriptPath must be a script path this tool returned, or a file you can already read …`로 거부되면 플러그인 설치 경로가 워킹 디렉터리에 등록되지 않은 것이다. 등록 후 중단한다 (재시도하지 않는다 — settings는 세션 시작 시 읽힌다):
+`scriptPath must be a script path this tool returned, or a file you can already read …`로 거부되면 플러그인 경로가 워킹 디렉터리에 없는 것이다. 등록 후 중단한다(재시도하지 않는다 — settings는 세션 시작 시 읽힌다):
 
 ```bash
 python3 "<scriptsDir>/ensure-workflow-dir.py"
 ```
-
 ```
 ❌ Auto 실행 불가: 플러그인 경로가 워킹 디렉터리에 없어 Workflow 도구가 거부했습니다.
 settings.json에 등록했습니다 — 새 세션부터 자동 적용됩니다.
@@ -77,91 +72,79 @@ settings.json에 등록했습니다 — 새 세션부터 자동 적용됩니다.
 
 ## Step 5: 결과 렌더링
 
-Workflow 반환 객체의 `status`별로 렌더링한다. 공통: `<completedSteps>`는 반환값의 목록.
+공통: `<completedSteps>`, `<prUrl>`은 반환값.
 
-**`completed`**:
-
+**`completed`** — 리뷰 요청 준비됨:
 ```
-─────────────────────────────────────────
-🎉 Auto 모드 완료 — <TASK-ID>
-─────────────────────────────────────────
-✅ 완료된 단계: <completedSteps, → 구분>
-⏭ 스킵: <skipped.user + skipped.pdca, 없으면 줄 생략>
-🔄 fix loop: <fixAttempts>회
+✅ 리뷰 요청 준비됨 — <TASK-ID>
+- 수용 조건: <metrics.acMet>/<metrics.acTotal> 충족 (미확인 <acUnverified>)
+- fix loop: <fixAttempts>회
+- PR: <prUrl> (draft)
 
-**다음 단계** (수동 실행 필요):
-- merge: `/jira-task merge <TASK-ID>` — worktree에서 로컬 병합
-- pr:    `/jira-task pr <TASK-ID>`    — Pull Request 생성
-- done:  `/jira-task done <TASK-ID>`  — 작업 완료 처리
-─────────────────────────────────────────
+diff와 검증 결과를 직접 확인한 뒤 `gh pr ready <번호>`로 리뷰를 요청하세요. 머지는 코드 오너가 합니다.
+머지 뒤: `/jira-task done <TASK-ID>` (loop라면 `loop sync`)
 ```
 
-**`aborted`** (단계 실패):
-
+**`awaiting_approval`**:
 ```
-❌ Auto 모드 중단: <failedStage> 단계에서 실패했습니다.
+⏸ 승인 대기 — <TASK-ID> (<artifact>)
+- PR: <prUrl> (draft)
+- <gateDetail가 있으면: 승인 확인 결과 — <gateDetail>>
 
+승인자가 PR에 `APPROVE <plan|intent|spec> <SHA>` 한 줄을 남기면 `/jira-task auto <TASK-ID>`로 이어서 진행합니다.
+```
+
+**`level_unconfirmed`**: `⏸ 등급이 확정되지 않아 멈췄습니다. /jira-task start <TASK-ID>로 등급을 확정하세요.`
+
+**`aborted`**:
+```
+❌ Auto 모드 중단: <failedStage> 단계 실패
 원인: <reason>
-현재 진행 상황: <completedSteps>
-
-수동으로 문제를 해결한 후 재실행하거나, 해당 단계부터 직접 실행하세요: /jira-task <단계> <TASK-ID>
+현재 진행: <completedSteps>
+해결 후 재실행하거나 해당 단계를 직접 실행하세요: /jira-task <단계> <TASK-ID>
 ```
 
 **`scope_shortfall`**:
-
 ```
-❌ Auto 모드 중단 (scope shortfall): review 품질 게이트가 부분 구현 신호를 보였습니다.
-
-신호:
-- 설계-구현 매칭률: <metrics.matchRate>% (임계값 70%)
-- Critical 이슈: <metrics.criticalCount>건 (임계값 3건)
-
-판단: 단일 fix sub-agent로 메우기 어려운 scope 누락으로 보입니다. 자동 fix loop을 건너뛰고 사용자 결정에 위임합니다.
-
-현재 진행 상황: <completedSteps>
-
-다음 권장 흐름 중 택일:
-1. 부분 구현을 그대로 수용하고 Phase 1으로 종료 → `/jira-task merge <TASK-ID>` 후 미구현 subtask는 별도 init
-2. 추가 구현 직접 수행 → 해당 worktree에서 추가 작업 후 `/jira-task review <TASK-ID>` 재실행
-3. impl/test/review 단계만 수동 재실행 → 단계별로 `/jira-task <단계> <TASK-ID>` 호출
+❌ Auto 모드 중단 (scope shortfall): 미충족 수용 조건 <acUnmet>/<acTotal>, Critical <criticalCount>건
+<unmet 목록>
+단일 수정으로 메우기 어려운 누락으로 보여 자동 수정을 건너뜁니다. 선택지:
+1. 계획을 고친다 — plan.md·spec.md 수정 후 재승인 (수용 조건 변경은 spec 재승인, SD-COM-GAT-006)
+2. 직접 구현을 보완한다 → `/jira-task verify <TASK-ID>`
+3. 작업을 나눈다 — 미충족 범위를 새 이슈로
 ```
 
-**`fix_unconverged`** (fix agent의 inner sensor loop이 5회 내 green 실패 — 재리뷰 없이 중단):
-
+**`fix_unconverged`**:
 ```
-❌ Auto 모드 중단: 리뷰 지적 수정이 lint/typecheck/관련 테스트로 수렴하지 않았습니다 (inner loop <innerLoopIterations>회).
-
-마지막 센서 출력:
-<sensorSummary>
-
-판단: computational sensor로 잡히지 않는 종류의 문제(설계 갭 등)로 보입니다. 사용자 결정에 위임합니다.
-현재 진행 상황: <completedSteps>
-
-worktree에서 직접 수정 후 재실행하세요: /jira-task test <TASK-ID> → /jira-task review <TASK-ID>
+❌ Auto 모드 중단: 수정이 lint/typecheck/이 작업의 테스트로 수렴하지 않았습니다 (inner loop <innerLoopIterations>회)
+마지막 센서 출력: <sensorSummary>
+worktree에서 직접 고친 뒤: /jira-task verify <TASK-ID>
 ```
 
 **`fix_exhausted`**:
-
 ```
-❌ Auto 모드 중단: review 품질 게이트를 2회 시도 후에도 통과하지 못했습니다.
-
-미해결 신호: Critical <metrics.criticalCount>건, 매칭률 <metrics.matchRate>%
-현재 진행 상황: <completedSteps>
-
-리뷰 리포트 확인: docs/review/<TASK-ID>.review.md
-수동으로 수정 후 재실행하세요: /jira-task review <TASK-ID>
+❌ Auto 모드 중단: 검증을 2회 수정 후에도 통과하지 못했습니다.
+미해결: <unmet 목록>
+검증 결과: work/<TASK-ID>/evidence/verification.md (L1은 PR 본문)
 ```
 
-## Step 5.5: run-log 기록 (관측용, non-blocking)
+**`test_dispute`**:
+```
+⏸ 테스트 이견 — 구현 세션이 테스트가 틀렸다고 판단했습니다 (테스트는 고치지 않았습니다).
+사유: <testDispute>
+테스트를 고칠지 사용자가 정합니다: 고치려면 사유를 남기고 `/jira-task test-write <TASK-ID>`, 아니면 `/jira-task impl <TASK-ID>`.
+```
 
-렌더링 후 Workflow 반환 객체를 **어떤 status든** run-log에 1줄 기록한다 (retro의 입력 — `tasks/retro-skill-design.md` §2). 스크립트는 Step 3의 `scriptsDir`에 있다 (재-lookup 금지). Bash 1회:
+## Step 6: run-log 기록 (관측용, non-blocking)
+
+어떤 status든 반환 객체를 run-log에 1줄 기록한다. Bash 1회:
 
 ```bash
 printf '%s' '<Workflow 반환 객체 JSON 그대로>' | python3 "<scriptsDir>/append-run-log.py" <TASK-ID> - ".jira-context.json" "docs/run-log"
 ```
 
-단계 소요시간은 스크립트가 worktree context의 `<step>At` 타임스탬프로 계산한다. 실패해도 워크플로 결과에는 영향 없음 — 경고 한 줄만 출력.
+실패해도 결과에는 영향 없음 — 경고 한 줄만.
 
-## 재개(Resume)
+## 재개
 
-중단 후 `/jira-task auto <TASK-ID>` 재실행이 정본 경로다 — Step 2가 최신 `completedSteps`를 읽어 남은 단계만 실행 계획에 들어간다. (같은 세션에서 스크립트를 수정하며 재시도하는 플러그인 개발 상황에서만 Workflow `resumeFromRunId`를 쓴다.)
+`/jira-task auto <TASK-ID>` 재실행이 정본 경로다 — 최신 `completedSteps`로 남은 단계만 진행하고, 승인 대기였다면 test-write가 승인부터 다시 확인한다.

@@ -1,36 +1,34 @@
 export const meta = {
   name: 'jira-task-auto',
-  description: 'Jira task 단계 파이프라인 자동 실행 (start→approach→impl+test→review + fix loop)',
+  description: 'Jira task를 다음 사람 게이트까지 자동 진행 (start→approach | test-write→impl→verify + fix loop)',
   phases: [
     { title: 'Start' },
     { title: 'Approach' },
-    { title: 'Impl+Test' },
-    { title: 'Review' },
+    { title: 'Test-write' },
+    { title: 'Impl' },
+    { title: 'Verify' },
     { title: 'Fix' },
   ],
 }
 
-// 설계: tasks/auto-workflow-design.md
-// launcher(skills/jira-task-auto/SKILL.md)가 args를 조립해 호출하고, 반환 객체로 한국어 요약을 렌더링한다.
+// 설계: tasks/sdlc-alignment-design.md §8 (구 설계: tasks/auto-workflow-design.md)
+// launcher(skills/jira-task-auto/SKILL.md)가 등급을 확정하고 args를 조립해 호출한다. 반환 객체로 한국어 요약을 렌더링한다.
 // 이 스크립트는 제어 흐름(순서·게이트·triage·fix loop)만 담당 — 판단 작업은 전부 agent()에 위임.
+// 멈추는 곳: L2·L3 승인 대기(approach 뒤, 또는 승인 확인 실패) / 리뷰 요청 준비됨(verify 통과). draft 해제와 머지는 사람.
+// 단계마다 새 sub-agent라 test-write / impl / verify는 서로 다른 컨텍스트다 (TA-COM-AGT-001, SD-COM-VER-003).
 
 const {
   taskId,
   worktreePath,
   completedSteps = [],
-  userSkipSteps = [],
-  breakdownLevel = null,
-  issueType: initialIssueType = null,
+  level: initialLevel = null,   // launcher가 확정한 등급 (context level)
   ctxFiles = [],
-  scriptsDir = null,   // 플러그인 scripts/ 절대 경로 — launcher가 lookup을 1회 끝내고 넘긴다 (stage agent의 lookup 의식 제거)
+  scriptsDir = null,            // 플러그인 scripts/ 절대 경로 — launcher가 lookup을 1회 끝내고 넘긴다
 } = args
 
 const worktreeCtx = ctxFiles[0] || `${worktreePath}/.jira-context.json`
 const done = new Set(completedSteps)
-const skip = new Set(userSkipSteps)
-let pdcaSkip = new Set()
-let issueType = initialIssueType
-let level = breakdownLevel
+let level = initialLevel
 
 // ---------- 스키마 ----------
 
@@ -42,44 +40,66 @@ const STAGE_SCHEMA = {
     result: { type: 'string', enum: ['success', 'failed'] },
     cwdVerified: { type: 'boolean' },
     completedStepsAfter: { type: 'array', items: { type: 'string' } },
-    artifactPaths: { type: 'array', items: { type: 'string' } },
-    jiraCommentPosted: { type: 'boolean' },
-    issueType: { type: ['string', 'null'] },
-    breakdownLevel: { type: ['string', 'null'], enum: ['L1', 'L2', 'L3', null] },
-    pdcaSkippable: { type: 'array', items: { type: 'string' } },
-    nextStepHint: { type: ['string', 'null'] },
+    level: { type: ['string', 'null'], enum: ['L1', 'L2', 'L3', null] },
+    prUrl: { type: ['string', 'null'] },
     failureReason: { type: ['string', 'null'] },
   },
 }
 
-const REVIEW_SCHEMA = {
+const APPROACH_SCHEMA = {
   type: 'object',
-  required: ['step', 'result', 'cwdVerified', 'completedStepsAfter', 'metrics'],
+  required: [...STAGE_SCHEMA.required, 'awaitingArtifact'],
+  properties: {
+    ...STAGE_SCHEMA.properties,
+    awaitingArtifact: { type: ['string', 'null'], enum: ['intent', 'spec', 'plan', 'spec·plan', null] },
+  },
+}
+
+const TEST_WRITE_SCHEMA = {
+  type: 'object',
+  required: [...STAGE_SCHEMA.required, 'gateStatus'],
+  properties: {
+    ...STAGE_SCHEMA.properties,
+    // sdlc-gate.py check 결과: L1은 'not_required', 재실행(planApproval 있음)은 'approved'
+    gateStatus: { type: 'string', enum: ['approved', 'not_approved', 'error', 'not_required'] },
+    gateDetail: { type: ['string', 'null'] },   // not_approved/error면 스크립트 출력의 사유·승인자·howto 요약
+  },
+}
+
+const VERIFY_SCHEMA = {
+  type: 'object',
+  required: [...STAGE_SCHEMA.required, 'metrics', 'unmet'],
   properties: {
     ...STAGE_SCHEMA.properties,
     metrics: {
       type: 'object',
-      required: ['matchRate', 'criticalCount', 'warningCount', 'infoCount'],
+      required: ['acTotal', 'acMet', 'acUnmet', 'acUnverified', 'checksPassed', 'criticalCount', 'warningCount', 'infoCount'],
       properties: {
-        matchRate: { type: ['number', 'null'] },
+        acTotal: { type: 'integer' },
+        acMet: { type: 'integer' },
+        acUnmet: { type: 'integer' },
+        acUnverified: { type: 'integer' },
+        checksPassed: { type: ['boolean', 'null'] },
         criticalCount: { type: 'integer' },
         warningCount: { type: 'integer' },
         infoCount: { type: 'integer' },
       },
     },
+    // fix agent 입력 — 미충족 AC·Critical·실패 검사를 한 줄씩 (본문 전체 금지)
+    unmet: { type: 'array', items: { type: 'string' } },
   },
 }
 
 const FIX_SCHEMA = {
   type: 'object',
-  required: ['step', 'result', 'cwdVerified', 'completedStepsAfter', 'converged', 'innerLoopIterations', 'testResult'],
+  required: [...STAGE_SCHEMA.required, 'converged', 'innerLoopIterations'],
   properties: {
     ...STAGE_SCHEMA.properties,
     filesEdited: { type: 'array', items: { type: 'string' } },
     converged: { type: 'boolean' },                 // inner sensor loop이 green으로 끝났는가
     innerLoopIterations: { type: 'integer' },
-    sensorSummary: { type: ['string', 'null'] },    // 미수렴 시 마지막 sensor 출력 요약 (bail 메시지용)
-    testResult: { type: 'string', enum: ['success', 'failed', 'skipped'] },  // 전체 스위트 (수렴 후 1회)
+    sensorSummary: { type: ['string', 'null'] },    // 미수렴 시 마지막 센서 출력 요약
+    testDispute: { type: ['string', 'null'] },      // 테스트 자체가 틀렸다는 판단이면 사유 (테스트는 고치지 않는다)
   },
 }
 
@@ -94,16 +114,17 @@ const guardHeader = [
   `호출 비용 규칙 (도구 호출 1회 ≈ 10초 — 의식 호출을 줄여라):`,
   `- 셸 명령은 Bash 도구만 쓴다. PowerShell 도구·즉석 스크립트 작성 금지.`,
   scriptsDir
-    ? `- 플러그인 스크립트는 전부 "${scriptsDir}/" 아래에 있다 (jira-context-update.py, jira-attach.sh, append-review-log-wrapper.sh, detect-lint.sh). Skill 본문의 script-lookup.md Read·lookup 블록·ls 확인을 전부 생략하고 이 절대 경로를 바로 쓴다.`
+    ? `- 플러그인 스크립트는 전부 "${scriptsDir}/" 아래에 있다 (jira-cli.py, jira-context-update.py, sdlc-gate.py, append-review-log-wrapper.sh, detect-lint.sh). Skill 본문의 script-lookup.md Read·lookup 블록·ls 확인을 전부 생략하고 이 절대 경로를 바로 쓴다.`
     : `- 플러그인 스크립트는 Skill 본문의 script-lookup 규약으로 1회만 해석한다.`,
   `- 이 worktree의 .jira-context.json은 "${worktreeCtx}"다 — 경로를 찾기 위한 ls/find 금지.`,
-  `- Jira 호출(조회·코멘트·전이·담당자·첨부)은 전부 \`python3 "${scriptPath('jira-cli.py')}" <get|search|comment|transitions|transition|whoami|assign|attach> ...\`로 한다 (규약: skills/_shared/jira-cli.md). mcp__atlassian__* 도구와 그것을 위한 ToolSearch는 사용하지 마라. 긴 코멘트는 scratchpad 파일로 쓰고 \`comment <KEY> @파일\`.`,
+  `- Jira 호출은 전부 \`python3 "${scriptPath('jira-cli.py')}" ...\`로 한다 (규약: skills/_shared/jira-cli.md). mcp__atlassian__* 도구와 그것을 위한 ToolSearch는 사용하지 마라.`,
+  `- 사용자에게 질문할 수 없다. Skill이 사용자 확인을 요구하는 지점에 오면 추정으로 진행하지 말고 result=failed, failureReason에 무엇을 확인받아야 하는지 적어 반환하라.`,
 ].join('\n')
 
 const returnFooter = [
   `완료 후 StructuredOutput으로만 결과를 반환하라:`,
-  `- completedStepsAfter에는 jira-context-update.py 실행 출력의 \`completedSteps=[...]\` 값을 그대로 옮겨 적는다 (파일 재-Read 금지, 기억에 의존 금지).`,
-  `- 산출물 본문(approach 문서 내용, 코드 diff, 테스트 로그)을 반환하지 마라 — 부모 컨텍스트 오염 방지.`,
+  `- completedStepsAfter에는 jira-context-update.py 실행 출력의 \`completedSteps=[...]\` 값을 그대로 옮겨 적는다 (파일 재-Read 금지, 기억에 의존 금지). 이번에 context를 갱신하지 않았으면 Skill 시작 시 읽은 값.`,
+  `- 산출물 본문(spec·plan 내용, 코드 diff, 테스트 로그)을 반환하지 마라 — 부모 컨텍스트 오염 방지.`,
 ].join('\n')
 
 function skillStagePrompt(step, extra = '') {
@@ -132,149 +153,151 @@ async function runStage(step, model, prompt, phase, schema = STAGE_SCHEMA) {
   })
   if (!r) return { ok: false, reason: 'sub-agent가 결과 없이 종료됨 (skip 또는 터미널 에러)' }
   if (!r.cwdVerified) return { ok: false, reason: `sub-agent cwd가 worktree(${worktreePath})가 아님 — repoRoot 오염 가드` }
-  if (r.result !== 'success') return { ok: false, reason: r.failureReason || '사유 미보고' }
-  if (r.issueType) issueType = r.issueType
-  if (r.breakdownLevel) level = r.breakdownLevel
+  if (r.level) level = r.level
+  if (r.result !== 'success') return { ok: false, reason: r.failureReason || '사유 미보고', r }
   return { ok: true, r }
 }
 
+let prUrl = null
+const base = () => ({ completedSteps: [...done], level, prUrl })
+
 function abort(stage, reason) {
-  return { status: 'aborted', failedStage: stage, reason, completedSteps: [...done], skipped: skippedInfo() }
+  return { status: 'aborted', failedStage: stage, reason, ...base() }
 }
 
-function skippedInfo() {
-  return { user: [...skip], pdca: [...pdcaSkip] }
-}
-
-function shouldRun(step) {
-  return !done.has(step) && !skip.has(step) && !pdcaSkip.has(step)
-}
-
-// L1 판정: breakdownLevel 우선, 없으면 issuetype 폴백, 둘 다 없으면 opus (보수 기본값)
-function resolveReviewModel() {
-  if (level) return level === 'L1' ? 'sonnet' : 'opus'
-  const l1Types = ['Subtask', 'Sub-task', 'Task', 'Bug', '하위 작업', '작업', '버그']
-  if (issueType && l1Types.includes(issueType)) return 'sonnet'
-  return 'opus'
+function requireStep(g, step) {
+  return g.r.completedStepsAfter.includes(step) ? null : `completedSteps에 ${step} 미기록 — context-update 실패 의심`
 }
 
 // ---------- 1. start ----------
 
-if (shouldRun('start')) {
+if (!done.has('start')) {
   const g = await runStage(
     'start',
     'haiku',
     skillStagePrompt('start', [
-      `   ⛔ Skill Step 6의 context 갱신은 반드시 jira-context-update.py 호출로 수행한다 — .jira-context.json을 Edit으로 직접 패치하지 마라 (startAt 등 타임스탬프가 스크립트의 UTC 규약을 따라야 run-log 소요시간이 맞는다).`,
-      `3. Skill의 PDCA 권고 블록에서 "스킵 가능"으로 판정된 단계를 pdcaSkippable 배열로 반환하라 (없으면 빈 배열).`,
-      `4. cachedIssue의 issuetype 이름만(예: "작업") issueType 필드로 반환하라 — 부가 설명 금지.`,
+      `   ⛔ context 갱신은 반드시 jira-context-update.py 호출로 한다 — .jira-context.json을 Edit으로 직접 패치하지 마라.`,
+      `   ⛔ 등급은 launcher가 이미 확정했다(이슈 라벨 sdlc-L*). 라벨이 없으면 판정·질문하지 말고 result=failed, failureReason="등급 미확정"으로 반환하라.`,
+      `3. 확정 등급을 level 필드에 "L1"|"L2"|"L3"로 반환하라.`,
     ].join('\n')),
     'Start'
   )
   if (!g.ok) return abort('start', g.reason)
-  if (!g.r.completedStepsAfter.includes('start')) return abort('start', 'completedSteps에 start 미기록 — context-update 실패 의심')
-  // PDCA 스킵은 approach/test만 후보. 사용자 명시 스킵과 무관한 단계에만 적용.
-  pdcaSkip = new Set((g.r.pdcaSkippable || []).filter((s) => ['approach', 'test'].includes(s) && !skip.has(s)))
+  const miss = requireStep(g, 'start')
+  if (miss) return abort('start', miss)
   done.add('start')
-  log(`start 완료${pdcaSkip.size ? ` — PDCA 스킵: ${[...pdcaSkip].join(', ')}` : ''}`)
+  log(`start 완료 — ${level}`)
 }
 
-// ---------- 2. approach ----------
+if (!level) return { status: 'level_unconfirmed', ...base() }
 
-if (shouldRun('approach')) {
+// ---------- 2. approach (L2·L3) — 산출물 커밋 후 항상 승인 대기로 멈춘다 ----------
+
+if (level !== 'L1' && !done.has('approach')) {
   const g = await runStage(
     'approach',
     'opus',
     skillStagePrompt('approach', [
-      `3. Step 0에서 판정한 레벨을 breakdownLevel 필드에 "L1"|"L2"|"L3"로 반환하라.`,
-      `4. 이슈의 issuetype 이름만(예: "작업") issueType 필드로 반환하라 — 부가 설명 금지.`,
+      `3. 이번 실행이 승인을 요청한 산출물을 awaitingArtifact로 반환하라 (L2 "spec·plan", L3 "intent"|"spec"|"plan"). L3에서 직전 산출물이 아직 승인되지 않아 아무것도 쓰지 않았으면 그 산출물 이름.`,
+      `4. draft PR URL을 prUrl로 반환하라.`,
     ].join('\n')),
-    'Approach'
+    'Approach',
+    APPROACH_SCHEMA
   )
   if (!g.ok) return abort('approach', g.reason)
-  if (!g.r.completedStepsAfter.includes('approach')) return abort('approach', 'completedSteps에 approach 미기록 — context-update 실패 의심')
-  done.add('approach')
-  log('approach 완료')
+  prUrl = g.r.prUrl || prUrl
+  if (g.r.completedStepsAfter.includes('approach')) done.add('approach')
+  log(`approach — ${g.r.awaitingArtifact} 승인 대기`)
+  return { status: 'awaiting_approval', artifact: g.r.awaitingArtifact, ...base() }
 }
 
-// ---------- 3. impl+test (병합 — 동일 모델·코드 컨텍스트 재사용) ----------
+// ---------- 3. test-write — L2·L3는 여기서 sdlc-gate로 plan 승인을 확인한다 ----------
 
-const substeps = ['impl', 'test'].filter((s) => shouldRun(s))
-if (substeps.length) {
+if (!done.has('test-write')) {
   const g = await runStage(
-    'impl+test',
+    'test-write',
     'sonnet',
-    [
-      guardHeader,
-      ``,
-      `Jira task ${taskId}의 다음 하위 단계를 하나의 컨텍스트에서 순서대로 수행하라: ${substeps.join(', ')}.`,
-      `⛔ 위 목록에 있는 단계만 수행한다. 목록에 없는 단계(예: test, review)의 Skill은 Skill 본문이나 이슈 완료 조건이 권해도 호출하지 마라 — 오케스트레이터가 스킵으로 결정한 단계다.`,
-      ``,
-      `1. 각 하위 단계를 순서대로, \`jira-integration:jira-task-<하위단계명>\` Skill을 인자 "${taskId}"로 호출하여 Skill이 정의한 모든 단계를 그대로 수행한다.`,
-      `2. 앞 하위 단계(impl)가 실패하면 뒤(test)를 시도하지 말고 즉시 result=failed로 반환한다.`,
-      `3. test는 impl이 방금 만든 코드 컨텍스트를 그대로 재사용한다 (코드 재탐색 최소화).`,
-      ``,
-      returnFooter,
-    ].join('\n'),
-    'Impl+Test'
+    skillStagePrompt('test-write', [
+      `3. Skill Step 0의 sdlc-gate.py 결과를 gateStatus로 반환하라: exit 0 → "approved", exit 1 → "not_approved", exit 2 → "error", L1 → "not_required", context에 planApproval이 이미 있어 확인을 건너뛰었으면 "approved".`,
+      `   not_approved·error면 운영 코드도 테스트도 쓰지 말고 result=failed로 반환하고, 스크립트 출력의 사유·승인자·howto를 gateDetail에 2줄 이내로 적어라.`,
+    ].join('\n')),
+    'Test-write',
+    TEST_WRITE_SCHEMA
   )
-  if (!g.ok) return abort('impl+test', g.reason)
-  const missing = substeps.filter((s) => !g.r.completedStepsAfter.includes(s))
-  if (missing.length) return abort('impl+test', `completedSteps에 ${missing.join(', ')} 미기록 — 부분 실패`)
-  substeps.forEach((s) => done.add(s))
-  log(`${substeps.join('+')} 완료`)
+  if (g.r && g.r.gateStatus === 'not_approved') {
+    return { status: 'awaiting_approval', artifact: level === 'L2' ? 'spec·plan' : 'plan', gateDetail: g.r.gateDetail || null, ...base() }
+  }
+  if (!g.ok) return abort('test-write', g.r && g.r.gateStatus === 'error' ? `승인 확인 오류: ${g.r.gateDetail || g.reason}` : g.reason)
+  const miss = requireStep(g, 'test-write')
+  if (miss) return abort('test-write', miss)
+  done.add('test-write')
+  log('test-write 완료')
 }
 
-// ---------- 4. review + triage + fix loop ----------
+// ---------- 4. impl — test-write와 다른 컨텍스트 ----------
 
-function reviewPrompt(delta) {
+if (!done.has('impl')) {
+  const g = await runStage(
+    'impl',
+    'sonnet',
+    skillStagePrompt('impl', `3. draft PR URL을 prUrl로 반환하라.`),
+    'Impl'
+  )
+  if (!g.ok) return abort('impl', g.reason)
+  const miss = requireStep(g, 'impl')
+  if (miss) return abort('impl', miss)
+  prUrl = g.r.prUrl || prUrl
+  done.add('impl')
+  log('impl 완료')
+}
+
+// ---------- 5. verify + triage + fix loop ----------
+
+function verifyPrompt(delta) {
   return [
     guardHeader,
     ``,
-    `[review-self-mode]${delta ? ' [review-delta-mode]' : ''}`,
+    `[verify-self-mode]${delta ? ' [verify-delta-mode]' : ''}`,
     ``,
     delta
-      ? `이번 리뷰는 fix loop 재리뷰다. [review-delta-mode] 규칙(reviewer-mode.md)에 따라 직전 리뷰의 Critical/미충족 Gap 항목과 fixSelfCheck.files에 든 파일만 재검증하고, 나머지 항목은 직전 판정을 승계한다.`
+      ? `이번 검증은 fix loop 재검증이다. [verify-delta-mode] 규칙(verifier-mode.md)에 따라 직전 미충족·미확인 AC, Critical, fixSelfCheck.files의 diff를 재검증하고 검사 명령을 1회 다시 실행한다.`
       : ``,
-    `Jira task ${taskId}의 review 단계를 수행하라. \`jira-integration:jira-task-review\` Skill을 인자 "${taskId}"로 호출한다.`,
+    `Jira task ${taskId}의 verify 단계를 수행하라. \`jira-integration:jira-task-verify\` Skill을 인자 "${taskId}"로 호출한다.`,
+    `본 wrapper는 구현과 분리된 새 컨텍스트이고 추가 Agent 권한이 없다 — [verify-self-mode]에 따라 Skill Step 2를 직접 수행한다. 코드를 고치지 않는다.`,
     ``,
-    `주의: 본 wrapper는 이미 격리된 sub-agent 컨텍스트이므로 추가 Agent 도구 사용 권한이 없다.`,
-    `[review-self-mode] 마커에 따라 Skill의 Step 2를 self-mode(직접 수행)로 진행한다 — gap analysis / lint / code quality 검토를 직접 수행.`,
-    `이미 approach/impl과 분리된 fresh context이므로 self-praise bias 우려 없음.`,
-    ``,
-    `리뷰 리포트 최상단 review-metrics 블록의 값(matchRate/criticalCount/warningCount/infoCount)을 metrics 객체로 반환하라.`,
-    `Gap Analysis를 스킵했으면 matchRate는 null.`,
+    `verify-metrics 블록 값을 metrics로 반환하라.`,
+    `unmet에는 미충족 AC, Critical finding, 실패한 검사를 한 줄씩 넣어라 (예: "AC-02 PAID 주문 취소가 관리자 외에도 허용됨 — src/order/cancel.ts:42"). 통과면 빈 배열.`,
+    `prUrl에 PR URL을 넣어라.`,
     ``,
     returnFooter,
   ].join('\n')
 }
 
-// 설계: tasks/sensor-loop-design.md — 루프 안쪽엔 초 단위 computational sensor, 바깥엔 분 단위 판정.
-function fixPrompt() {
+// 설계: tasks/sensor-loop-design.md — 루프 안쪽엔 초 단위 computational sensor, 바깥엔 분 단위 판정(verify).
+function fixPrompt(unmet) {
   return [
     guardHeader,
     ``,
-    `Jira task ${taskId}의 리뷰 지적사항을 수정하고, 싼 센서(lint/typecheck/관련 테스트)로 수렴시킨 뒤 전체 테스트를 1회 재실행하라.`,
+    `Jira task ${taskId}의 검증 미통과 항목을 고쳐라. 이 세션의 역할은 implementer다 — 테스트 파일은 고칠 수 없다(hook이 막는다).`,
     ``,
-    `## A. 수정 대상 식별`,
-    `1. \`docs/review/${taskId}.review.md\`를 Read로 읽는다.`,
-    `2. Critical 항목과 Gap Analysis 미충족 항목을 식별한다 (게이트를 막는 것은 이 둘뿐). Warning은 같은 파일을 이미 수정 중이라 저비용으로 처리되는 경우에만 함께 고치고, 이를 위해 추가 파일을 열지 마라.`,
+    `## A. 시작`,
+    `  python3 "${scriptPath('jira-context-update.py')}" ${taskId} - - "${worktreeCtx}" --patch '{"activeRole":"implementer"}'`,
+    `수정 대상 (검증 세션이 보고한 것 — 이것만 고친다):`,
+    ...unmet.map((u) => `- ${u}`),
+    `테스트 자체가 틀렸다고 판단되면 고치지 말고 testDispute에 어느 테스트가 왜 틀렸는지 적고 result=failed로 반환하라.`,
+    `억제 주석·분석 제외 설정 추가 금지. 특정 테스트 값만 통과시키는 분기 금지.`,
     ``,
-    `## B. Inner sensor loop (최대 5회 — jira-task-test Skill을 부르지 마라)`,
+    `## B. Inner sensor loop (최대 5회)`,
     `회차마다: 수정(Edit) → 아래 센서 실행 → 실패 출력을 다음 수정의 입력으로 → 전부 green이면 종료.`,
-    `- lint: \`bash ${scriptPath('detect-lint.sh')}\` 출력의 도구만 (NONE이면 skipped), 변경 파일 전체를 배치 1회. 회차당 1회, 파일 저장마다 돌리지 마라. 탐지를 위한 별도 cat/grep/ls 금지.`,
-    `- typecheck: 프로젝트가 선언한 것만 (tsc 등). 없으면 skipped.`,
-    `- 관련 테스트만 (전체 스위트 금지): vitest → \`vitest related <변경파일> --run\` / jest → \`jest --findRelatedTests <변경파일>\` / pytest → \`pytest --lf\` / playwright → 직전 실패 spec만 \`--grep\` 또는 파일 지정 / 선별 불가(custom) → 직전 실패 테스트 목록만, 그것도 불가면 이 항목 skipped.`,
-    `5회 안에 green이 안 되면 멈추고 converged=false, 마지막 센서 출력을 sensorSummary(3줄 이내)로 반환하라 — 전체 테스트·재리뷰로 넘어가지 마라.`,
+    `- lint: \`bash ${scriptPath('detect-lint.sh')}\` 출력의 도구만 (NONE이면 skipped), 변경 파일 전체를 배치 1회.`,
+    `- typecheck: 프로젝트가 선언한 것만. 없으면 skipped.`,
+    `- 이 작업의 테스트(context testWrite.tests)와 관련 테스트만 — 전체 스위트는 재검증이 돈다.`,
+    `5회 안에 green이 안 되면 멈추고 converged=false, 마지막 센서 출력을 sensorSummary(3줄 이내)로 반환하라.`,
     ``,
-    `## C. 기록 (Bash 1회 — Edit/date 호출 금지)`,
-    `\`.jira-context.json\`의 completedSteps에서 "test"와 "review"를 제거하면서 self-check를 한 번에 기록한다:`,
-    `  python3 "${scriptPath('jira-context-update.py')}" ${taskId} "-" "-" "${worktreeCtx}" --patch '{"completedSteps":<test·review를 뺀 배열>,"fixSelfCheck":{"iterations":<N>,"files":[<수정 파일>],"lint":{"tool":..,"files":..,"errors":..,"warnings":..},"typecheck":"pass|fail|skipped","relatedTests":"pass|fail|skipped"},"implSelfCheck":{"planMatched":"<유지>","lint":{<마지막 lint 결과>}}}'`,
-    `(ranAt은 스크립트가 채운다. aggregate에는 기록하지 않는다.)`,
-    ``,
-    `## D. 전체 스위트 1회 (수렴 후에만)`,
-    `1. (C에서 completedSteps 정리 완료)`,
-    `2. \`jira-integration:jira-task-test\` Skill을 인자 "${taskId}"로 호출한다 (리포트·Jira 코멘트는 이 1회만 갱신). 결과를 testResult로 반환.`,
+    `## C. 커밋과 기록 (수렴했을 때)`,
+    `바꾼 파일만 add → \`git commit -m "fix(${taskId}): 검증 지적 수정"\` → \`git push\`. 계획과 달라졌으면 plan.md 결정 기록도 같은 커밋에.`,
+    `  python3 "${scriptPath('jira-context-update.py')}" ${taskId} "-" "-" "${worktreeCtx}" --patch '{"activeRole":null,"fixSelfCheck":{"iterations":<N>,"files":[<수정 파일>],"lint":{"tool":..,"files":..,"errors":..,"warnings":..},"typecheck":"pass|fail|skipped","relatedTests":"pass|fail|skipped"}}'`,
+    `미수렴·testDispute로 끝나도 activeRole은 null로 지운다.`,
     ``,
     returnFooter,
     `- filesEdited에는 수정한 파일 상대경로 목록, innerLoopIterations에는 B의 회차 수를 넣어라.`,
@@ -285,58 +308,54 @@ let fixAttempts = 0
 let innerLoopIterations = 0
 let lastMetrics = null
 
-while (shouldRun('review')) {
-  const reviewModel = resolveReviewModel()
-  // 1회차는 항상 full 리뷰, fix 이후 재리뷰는 delta 모드 (직전 Critical/미충족 Gap + 수정 파일만 재검증)
-  const g = await runStage('review', reviewModel, reviewPrompt(fixAttempts > 0), 'Review', REVIEW_SCHEMA)
-  if (!g.ok) return abort('review', g.reason)
+while (!done.has('verify')) {
+  const verifyModel = level === 'L1' ? 'sonnet' : 'opus'
+  const g = await runStage('verify', verifyModel, verifyPrompt(fixAttempts > 0), 'Verify', VERIFY_SCHEMA)
+  if (!g.ok) return abort('verify', g.reason)
+  prUrl = g.r.prUrl || prUrl
 
   const m = g.r.metrics
   lastMetrics = m
-  const passed = g.r.completedStepsAfter.includes('review')
-
-  if (passed) {
-    done.add('review')
-    log('review 통과')
+  if (g.r.completedStepsAfter.includes('verify')) {
+    done.add('verify')
+    log('verify 통과 — 리뷰 요청 준비됨')
     break
   }
 
   // Scope Shortfall Triage — 근거: skills/jira-task-auto/refs/review-wrapper.md
-  // matchRate < 70% 또는 Critical ≥ 3 → 단일 fix agent로 못 메우는 scope 누락 → 사용자 위임.
-  // (구버전의 Triage Parse Bail은 schema 강제 반환으로 구조적으로 소멸 — 파싱 실패 경로 없음)
-  if ((m.matchRate !== null && m.matchRate < 70) || m.criticalCount >= 3) {
-    return { status: 'scope_shortfall', metrics: m, completedSteps: [...done], skipped: skippedInfo(), fixAttempts, innerLoopIterations }
+  // 미충족 AC가 30% 초과 또는 Critical ≥ 3 → 단일 fix agent로 못 메우는 scope 누락 → 사용자 위임.
+  const unmetRatio = m.acTotal > 0 ? m.acUnmet / m.acTotal : 0
+  if (unmetRatio > 0.3 || m.criticalCount >= 3) {
+    return { status: 'scope_shortfall', metrics: m, unmet: g.r.unmet, fixAttempts, innerLoopIterations, ...base() }
   }
 
   if (fixAttempts >= 2) {
-    return { status: 'fix_exhausted', metrics: m, completedSteps: [...done], skipped: skippedInfo(), fixAttempts, innerLoopIterations }
+    return { status: 'fix_exhausted', metrics: m, unmet: g.r.unmet, fixAttempts, innerLoopIterations, ...base() }
   }
 
   fixAttempts++
-  log(`review 게이트 미통과 (시도 ${fixAttempts}/2) — fix sub-agent 위임 (inner sensor loop → 전체 테스트 1회)`)
+  log(`verify 미통과 (시도 ${fixAttempts}/2) — fix sub-agent 위임`)
 
-  const f = await runStage('review-fix', 'sonnet', fixPrompt(), 'Fix', FIX_SCHEMA)
-  if (!f.ok) return abort('review-fix', f.reason)
+  const f = await runStage('verify-fix', 'sonnet', fixPrompt(g.r.unmet || []), 'Fix', FIX_SCHEMA)
+  if (f.r && f.r.testDispute) {
+    return { status: 'test_dispute', testDispute: f.r.testDispute, metrics: m, fixAttempts, innerLoopIterations, ...base() }
+  }
+  if (!f.ok) return abort('verify-fix', f.reason)
   innerLoopIterations += f.r.innerLoopIterations || 0
   if (!f.r.converged) {
-    // inner loop 미수렴 = computational sensor로 안 잡히는 종류의 문제 → 재리뷰 없이 사용자 위임
     return {
-      status: 'fix_unconverged', metrics: m, completedSteps: [...done], skipped: skippedInfo(),
-      fixAttempts, innerLoopIterations, sensorSummary: f.r.sensorSummary || null,
+      status: 'fix_unconverged', metrics: m, fixAttempts, innerLoopIterations,
+      sensorSummary: f.r.sensorSummary || null, ...base(),
     }
   }
-  if (f.r.testResult !== 'success') return abort('review-fix', `수정 후 전체 테스트 실패: ${f.r.failureReason || '사유 미보고'}`)
-  done.delete('test')
-  if (f.r.completedStepsAfter.includes('test')) done.add('test')
 }
 
-// ---------- 5. 완료 ----------
+// ---------- 6. 리뷰 요청 준비됨 ----------
 
 return {
   status: 'completed',
-  completedSteps: [...done],
-  skipped: skippedInfo(),
   fixAttempts,
   innerLoopIterations,
   metrics: lastMetrics,
+  ...base(),
 }

@@ -15,7 +15,7 @@ Exit codes:
 
 설계: tasks/retro-skill-design.md §2. 한 줄 스키마:
     { taskId, timestamp, kind, status, failedStage, reason, stagesRun, skipped,
-      fixAttempts, innerLoopIterations, breakdownLevel,
+      fixAttempts, innerLoopIterations, level,
       stageDurationsSec, harnessVersion }
 """
 
@@ -96,7 +96,7 @@ def build_entry(task_id, result, ctx, kind):
         "skipped": {"user": skipped.get("user") or [], "pdca": skipped.get("pdca") or []},
         "fixAttempts": result.get("fixAttempts", 0),
         "innerLoopIterations": result.get("innerLoopIterations"),
-        "breakdownLevel": ctx.get("breakdownLevel") or result.get("breakdownLevel"),
+        "level": ctx.get("level") or result.get("level"),  # v0.70.0: SDLC 등급 (구 breakdownLevel)
         "metrics": result.get("metrics"),
         "stageDurationsSec": stage_durations(ctx),
         "harnessVersion": harness_version(),
