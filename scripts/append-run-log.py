@@ -103,6 +103,8 @@ def build_entry(task_id, result, ctx, kind):
         # loop-run 전용 (auto에서는 None)
         "quarantined": result.get("quarantined"),
         "passed": result.get("passed"),
+        "passes": result.get("passes"),      # v0.70.0 loop 패스 (prep/sync/plan/build)
+        "awaiting": result.get("awaiting"),  # v0.70.0 plan 승인 대기
     }
 
 
