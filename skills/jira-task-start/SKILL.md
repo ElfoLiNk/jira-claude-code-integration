@@ -16,7 +16,7 @@ allowed-tools:
 **Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Prerequisites
-- Jira MCP server must be connected (check with `/jira`)
+- Jira 자격증명 설정됨 (`/jira`로 확인, `skills/_shared/jira-cli.md`)
 - Current directory should be inside a git repository
 - TASK-ID must be a valid Jira issue key (e.g., PROJ-123)
 
@@ -36,17 +36,13 @@ cwd에서 `.jira-context.json`을 `Read`로 읽어보고 아래로 분기 — **
 
 ### Step 1: Fetch Issue Details (cache-first)
 
-먼저 `.jira-context.json`의 `cachedIssue`를 확인한다. **모든 필수 필드(`summary`, `description`, `priority`, `assignee`, `issuetype`)가 채워져 있고 `fetchedAt`이 있으면 fetch를 건너뛴다** — init이 만들어둔 캐시가 이미 충분한 경우.
-
-cache miss면 `jira-cli.py`로 조회 (`skills/_shared/jira-cli.md` — MCP 도구 대신 Bash 1회):
+`cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그 값을 쓴다 (CLAUDE.md "Cache-First Fetch"). 아니면 조회한다:
 
 ```bash
-python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks
+python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks > "<scratchpad>/<TASK-ID>.issue.json"
 ```
 
-호출 후 결과를 **worktree-local** `.jira-context.json`의 `cachedIssue`에 저장한다 (CLAUDE.md "Issue Cache" 참고 — 후속 단계가 재조회를 생략할 수 있게). `fetchedAt`은 반드시 `new Date().toISOString()` (UTC `Z`) 형식.
-
-> ⛔ **fresh 모드에서는 이 시점에 worktree-local 파일이 아직 없다 — cwd 파일에 쓰지 말고 메모리로만 유지**했다가 Step 6에서 worktree-local context를 생성할 때 기록한다. cwd의 `.jira-context.json`이 aggregate(`tasks[]` 존재)인 경우 거기에 `cachedIssue`를 쓰면 최상위가 오염된다 (절대 금지).
+캐시는 Step 6에서 담당자·상태·라벨이 바뀐 뒤 한 번만 기록한다(`--cache-issue`). 이 단계에서는 파일에 쓰지 않는다 — fresh 모드에서는 worktree-local 파일이 아직 없고, cwd가 aggregate(`tasks[]`)면 `cachedIssue`를 쓰는 순간 최상위가 오염된다.
 
 Display to the user:
 - **Key**: Issue key
@@ -59,6 +55,10 @@ Display to the user:
 - **Sub-tasks**: If any
 - **Linked Issues**: If any
 
+### Step 1.2: 등급 판정·확정 (Jira에 쓰기 전에)
+
+`skills/_shared/sdlc-level.md`를 Read하고 그대로 따른다. labels에 `sdlc-L*`가 이미 있으면 묻지 않는다. **확정 전에는 담당자 지정·상태 전이를 하지 않는다** — 질문에서 멈추거나 중단돼도 Jira와 로컬이 어긋나지 않게. 확정 뒤 라벨·`## SDLC Level` 코멘트를 올리고, context 기록은 Step 6의 `--patch`로 한다.
+
 ### Step 1.5: Self-Assign (현재 토큰 사용자로 담당자 지정)
 
 작업을 시작하는 계정으로 이슈 담당자를 지정한다.
@@ -66,7 +66,6 @@ Display to the user:
 1. `python3 "<scripts>/jira-cli.py" whoami` → 현재 토큰 사용자의 `accountId`·`displayName`.
 2. `cachedIssue.assignee`(또는 Step 1의 현재 담당자)가 이미 이 사용자면 **호출 생략** (중복 write 방지).
 3. 다르면 `python3 "<scripts>/jira-cli.py" assign <TASK-ID>` (기본 me).
-4. 성공 시 `cachedIssue.assignee`를 이 사용자 표시명으로 갱신한다 (Step 1 캐시 patch에 반영 → 이후 Display·README가 본인으로 보이도록).
 
 **비차단**: 권한 부족 등으로 실패하면 한 줄 경고만 출력하고 워크플로를 계속한다 (transition 단계와 동일 정책).
 ```
@@ -149,10 +148,6 @@ fi
 <linked issues if any>
 ```
 
-### Step 4.5: 등급 판정·확정
-
-`skills/_shared/sdlc-level.md`를 Read하고 그대로 따른다. labels에 `sdlc-L*`가 이미 있으면 묻지 않는다. 확정 전에는 Step 5로 넘어가지 않는다. 라벨·`## SDLC Level` 코멘트는 여기서 올리고, context 기록은 Step 6의 `--patch`로 한다.
-
 ### Step 5: Post Comment to Jira
 
 ```bash
@@ -169,20 +164,21 @@ python3 "<scripts>/jira-cli.py" comment <TASK-ID> "## Start Work
 ```bash
 SCRIPT_NAME="jira-context-update.py" OUT_VAR="JIRA_CTX_UPDATE_PY"
 # Read skills/_shared/script-lookup.md and execute its lookup block here
+python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks > "<scratchpad>/<TASK-ID>.issue.json"   # 담당자·상태·라벨 반영본
 python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> start "<fresh-jira-status>" \
     "<worktree>/.jira-context.json" \
     "<repoRoot>/.jira-context.json" \
+    --cache-issue "<scratchpad>/<TASK-ID>.issue.json" \
     --patch '{"level":"<L1|L2|L3>","riskSignals":[<번호...>]}'
 ```
 
-- `<fresh-jira-status>`: Step 2 `transition` 출력의 `status` (전이 후 실제 status명 (예: `"In Progress"`, `"진행 중"`). transition 시도값을 그대로 쓰지 말 것.
-- `<repoRoot>`: worktree-local 파일의 `repoRoot` 필드. 없으면 `git worktree list | head -1`로 폴백.
+- `<fresh-jira-status>`: Step 2 `transition` 출력의 `status` (전이 후 실제 status명, 예: `"In Progress"`, `"진행 중"`). transition 시도값을 그대로 쓰지 말 것.
+- `<repoRoot>`: Step 0에서 Read한 worktree-local context의 `repoRoot` 값을 **리터럴로** 쓴다(셸에서 다시 파싱하지 않는다). 없으면 `git worktree list | head -1`의 첫 칸.
+- 경로가 틀리면 스크립트가 `error: missing: …`와 exit 1을 낸다 — 경로를 고쳐 다시 호출한다.
 
-스크립트는 `completedSteps`에 `"start"` 추가, `status` 갱신, `startAt` 기록, `cachedIssue.status`/`fetchedAt` 갱신을 일괄 처리한다.
+스크립트는 `completedSteps`에 `"start"` 추가, `status`·`startAt`·`level`·`riskSignals` 기록, `cachedIssue`(+`fetchedAt`) 저장을 한 번에 한다. `cachedIssue`는 worktree-local에만 들어간다.
 
-`cachedIssue` 본문은 Step 1 fetch 결과로 worktree-local 파일에 미리 patch해두어야 스크립트가 status/fetchedAt만 깔끔히 갱신한다.
-
-파일이 없는 경우(fresh 모드)에만 새로 만든 뒤 위 스크립트를 호출한다.
+fresh 모드는 worktree-local 파일이 없으므로 init과 같은 필드(`taskId`, `branch`, `worktreePath`, `repoRoot`, `baseBranch`, `summary`, `completedSteps: []`)로 먼저 만든 뒤 위 스크립트를 호출한다.
 
 ### Step 7: Completion Summary
 

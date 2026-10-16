@@ -48,7 +48,11 @@ L2·L3 작업의 산출물을 `work/<TASK-ID>/`에 쓰고 커밋한 뒤 draft PR
 
 ### Step 1: Cache-First Fetch
 
-context `cachedIssue`가 `key === <TASK-ID>`이고 `summary`/`description`/`issuetype`/`labels`/`attachments`(빈 배열 허용)/`fetchedAt`이 있으면 그대로 쓴다. 아니면 `python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks` 후 worktree-local `cachedIssue`를 갱신한다(`fetchedAt`은 UTC `Z`).
+context `cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그대로 쓴다(CLAUDE.md "Cache-First Fetch"). 아니면:
+```bash
+python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks > "<scratchpad>/<TASK-ID>.issue.json"
+python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> - - "<worktree>/.jira-context.json" --cache-issue "<scratchpad>/<TASK-ID>.issue.json"
+```
 
 ### Step 1.5: 첨부와 참조 읽기
 

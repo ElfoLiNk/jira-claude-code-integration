@@ -32,7 +32,7 @@
 
 - 성공: stdout 한 줄 JSON. 필요한 값만 읽는다.
 - 실패: exit 1 + stderr `jira-cli: <code> <reason> — <hint>`. 401/403이면 자격증명 문제로 보고 중단, 404는 키 확인. 코멘트/담당자 지정 실패는 비차단(경고 후 계속), 전이 실패는 현재 상태를 알리고 계속.
-- `cachedIssue` 갱신: `get` 출력의 필드를 그대로 저장 (`fetchedAt`은 UTC Z).
+- `cachedIssue` 갱신: `get` 출력을 파일로 받아 `jira-context-update.py <KEY> - - <worktree ctx> --cache-issue <파일>` (`fetchedAt`은 스크립트가 채운다).
 
 ## 금지
 

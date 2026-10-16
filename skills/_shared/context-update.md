@@ -24,7 +24,9 @@ python3 "$JIRA_CTX_UPDATE_PY" "$TASK_ID" "$STEP" "$STATUS" \
 - `completedSteps`에 `STEP` 추가 (중복 방지).
 - `STATUS != "-"`일 때만 top-level `status` + (있으면) `cachedIssue.status` 갱신.
 - `<STEP>At` UTC ISO 8601 (Z 접미사) 기록.
-- `cachedIssue.fetchedAt` 갱신 (cachedIssue 존재 시).
+- `cachedIssue.fetchedAt` 갱신 (`STATUS != "-"`이고 cachedIssue가 있을 때만).
+- `--cache-issue <파일>`: `jira-cli.py get` 출력을 `cachedIssue`로 저장(worktree-local만).
+- ctx 파일이 없으면 `error: missing:`과 exit 1 — 존재하지 않는 경로는 인자에서 빼고 호출한다.
 - aggregate(`tasks[]`) vs worktree(top-level) 자동 감지.
 
 ## 호출 후 보존해야 할 추가 필드

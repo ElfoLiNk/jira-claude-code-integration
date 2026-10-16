@@ -34,8 +34,8 @@ atlassian MCP 서버는 **선택**(`/jira setup --mcp`, 대화 중 ad-hoc 질의
 - **Markdown for Jira comments**: Jira 코멘트는 마크다운으로 작성.
 
 - **Cache-First Fetch** (approach/test-write/impl/verify/done): 호출 직전 `.jira-context.json`의 `cachedIssue`를 먼저 확인.
-  1. `cachedIssue.key === <TASK-ID>`면 그 값 사용 → `jira_get_issue` 호출 **생략**.
-  2. miss면 본래 fields/comment_limit으로 fetch 후 `cachedIssue` 갱신.
+  1. `cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그 값 사용 → `jira-cli.py get` 호출 **생략**. 필드 목록은 따지지 않는다(`cachedIssue`는 항상 `get` 출력 전체).
+  2. miss면 `jira-cli.py get <KEY> --fields subtasks,issuelinks > <파일>` 후 `jira-context-update.py <KEY> - - <worktree ctx> --cache-issue <파일>`로 저장 (LLM이 JSON을 직접 편집하지 않는다).
   3. 강제 새로고침은 사용자가 `cachedIssue`를 수동 삭제.
   4. `cachedIssue`는 **worktree-local context에만** 기록한다 — `tasks[]`가 있는 aggregate 파일 최상위에는 절대 기록 금지 (스키마 오염; `jira-context-update.py`가 발견 시 자동 제거).
 

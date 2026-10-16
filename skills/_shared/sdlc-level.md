@@ -36,7 +36,7 @@ Epic은 등급을 붙이지 않는다. 등급은 PR이 나오는 작업 단위(S
    - 근거: <한두 줄>
    - 확정: <whoami displayName> (에이전트 제안: L2)
    ```
-3. **context**: `jira-context-update.py`의 `--patch '{"level":"L2","riskSignals":[1]}'` — worktree-local과 aggregate 둘 다에 반영된다. 위험 신호가 없으면 `[]`.
+3. **context**: `jira-context-update.py`의 `--patch '{"level":"L2","riskSignals":[1]}'` — worktree-local과 aggregate 둘 다에 반영된다. 위험 신호가 없으면 `[]`. 라벨이 바뀌었으므로 같은 호출에 `--cache-issue <get 출력 파일>`을 붙여 `cachedIssue`도 새로 받는다(start는 Step 6에서 한 번에 한다).
 
 ## 등급을 바꿀 때
 

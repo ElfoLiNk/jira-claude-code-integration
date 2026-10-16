@@ -50,7 +50,7 @@ Behavior:
     - status: replaced.
     - <step>At: set to current UTC ISO 8601 (Z suffix). TZ-naive timestamps are
       treated as stale by the dashboard reader.
-    - cachedIssue.status / cachedIssue.fetchedAt: updated when cachedIssue exists
+    - cachedIssue.status / cachedIssue.fetchedAt: updated only when status != "-" and cachedIssue exists
       (never created from scratch — leave None as-is).
 
 Exit codes:
@@ -94,9 +94,9 @@ def _apply_step(target: dict, step: str, status: str, ts: str) -> None:
     if not keep_status:
         target["status"] = status
     ci = target.get("cachedIssue")
-    if isinstance(ci, dict):
-        if not keep_status:
-            ci["status"] = status
+    if isinstance(ci, dict) and not keep_status:
+        # status는 transition 출력(Jira 확인값)이므로 그때만 신선도를 갱신한다 — record-only 단계가 fetchedAt을 덮으면 캐시가 실제보다 새것처럼 보인다
+        ci["status"] = status
         ci["fetchedAt"] = ts
 
 
