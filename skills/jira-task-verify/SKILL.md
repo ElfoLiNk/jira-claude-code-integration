@@ -43,7 +43,7 @@ allowed-tools:
 
 ### Step 3: 증거 저장
 
-- **L2·L3**: 플러그인 `templates/sdlc/verification.md`를 Read해 `work/<TASK-ID>/evidence/verification.md`를 쓴다(표준 사본 표시·안내 주석은 지운다). "수용 조건별 판정" 표, "실행한 검사"(명령과 결과 요약), "독립 검증"(Critical·Warning 요약과 처리 결과)에 결과를 옮긴다. `verify-metrics`·`verify-timings` 블록은 파일 맨 위에 그대로 둔다. 화면 캡처 등은 같은 `evidence/`에 둔다.
+- **L2·L3**: 플러그인 `templates/sdlc/verification.md`를 Read해 `work/<TASK-ID>/evidence/verification.md`를 쓴다(표준 사본 표시·안내 주석은 지운다). "수용 조건별 판정" 표, "실행한 검사"(명령과 결과 요약), "독립 검증"(양식대로 목록 한 줄씩: `- [Critical|Warning] <파일:라인> — <요약>. 처리: <작업 담당자 판단 대기 | 수정함 | 후속 이슈>`)에 결과를 옮긴다. `verify-metrics`·`verify-timings` 블록은 파일 맨 위에 그대로 둔다. 화면 캡처 등은 같은 `evidence/`에 둔다.
   ```bash
   git add work/<TASK-ID>/evidence/
   git commit -m "docs(<TASK-ID>): verification"
@@ -79,9 +79,9 @@ set -e
    - PR: <URL> (draft)
 
    ---
-   Verified by jira-reviewer subagent (model: <모델>)
+   Verified by jira-reviewer <subagent | self-mode> (model: <정식 모델 ID>)
    ```
-   끝의 서명 줄은 review-log 분석이 검증 주체를 식별하는 데 쓴다.
+   끝의 서명 줄은 review-log 분석이 검증 주체를 식별하는 데 쓴다. Mode A는 `subagent`, Mode B(`[verify-self-mode]`)는 `self-mode`.
 
 ### Step 6: context와 완료 요약
 
@@ -106,7 +106,7 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> verify "-" \
 diff와 검증 결과를 직접 확인한 뒤 draft를 풀어 리뷰를 요청하세요: `gh pr ready <번호>`
 머지는 코드 오너가 합니다. 머지된 뒤 `/jira-task done <TASK-ID>`(또는 `loop sync`)가 Jira를 완료로 옮깁니다.
 
-**Progress**: init → start → approach → test-write → impl → **verify ✓** → pr → done
+**Progress**: init → start → approach(L2·L3) → test-write → impl → **verify ✓** → pr → done
 ---
 ```
 

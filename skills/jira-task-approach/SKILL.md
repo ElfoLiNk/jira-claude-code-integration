@@ -163,7 +163,7 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> approach "-" \
 - PR: <URL> (draft)
 - 승인자: @<login> — PR에 `APPROVE <artifact> <SHA>` 한 줄
 
-**Progress**: init → start → **approach ⏸** → test-write → impl → verify → pr → done
+**Progress**: init → start → **approach(L2·L3) ⏸** → test-write → impl → verify → pr → done
 
 **Next**: 승인 뒤 `/jira-task test-write <TASK-ID>` (L3 intent·spec 단계면 `/jira-task approach <TASK-ID>`로 다음 산출물)
 ---

@@ -1,4 +1,4 @@
-<!-- 표준 사본: mzd-software-development-standard 00-ai-native-sdlc-process v0.9.0b, templates/work/TASK-ID/evidence/verification.md (a599561). 고치지 말고 표준이 바뀌면 통째로 교체한다. -->
+<!-- 표준 사본: mzd-software-development-standard 00-ai-native-sdlc-process v0.9.0b, templates/work/TASK-ID/evidence/verification.md (a599561). 이 줄은 플러그인 보관 표시라 산출물에 옮길 때 지운다. 플러그인 유지보수: 사본은 고치지 말고 표준이 바뀌면 통째로 교체. -->
 <!--
 L2·L3 작업에서 work/<작업 ID>/evidence/verification.md 로 복사해 씁니다 (SD-COM-VER-001).
 판정은 충족 | 미충족 | 미확인 셋 중 하나입니다. 근거는 도구가 남긴 것(테스트 이름과 CI 실행 링크, 명령 출력, 화면 캡처 파일)으로 적습니다.

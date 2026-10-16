@@ -75,7 +75,7 @@ git commit -m "feat(<TASK-ID>): <요약>"       # 버그 수정은 fix(<TASK-ID>
 
 1. **계획 대조**: plan 작업 순서(L1은 이슈 AC)를 실제 변경과 하나씩 대조한다. 빠진 항목은 마저 구현하고, 의도적으로 뺀 항목은 사유를 plan 결정 기록(L1은 Jira 코멘트)에 적는다.
 2. **이 작업의 테스트 통과**: test-write의 테스트를 한 번 더 돌린다. 실패가 남으면 완료로 처리하지 않는다.
-3. **Lint 1회**: `bash <scripts>/detect-lint.sh` 1회 호출(`LINT <name> <cmd>` / `FORMAT <name> <cmd>` / `NONE`). 출력 명령을 변경 파일 전체에 한 번에 실행하고, 오류는 고친 뒤 1회만 재실행한다. 구현 중에는 lint를 돌리지 않는다. verify는 이 기록을 인용한다.
+3. **Lint 1회**: `bash <scripts>/detect-lint.sh` 1회 호출(`LINT <name> <cmd>` / `FORMAT <name> <cmd>` / `NONE`). 출력 명령을 변경 파일 전체에 한 번에 실행하고, 오류는 고친 뒤 1회만 재실행한다. `NONE`이면 `"lint":{"tool":"none"}`으로 기록한다. 구현 중에는 lint를 돌리지 않는다. verify는 이 기록을 인용한다.
 
 ### Step 6: push와 PR
 
@@ -107,9 +107,9 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> impl "-" \
 - 커밋: <목록>
 - 이 작업의 테스트: <n>/<n> 통과 / lint <errors> errors (<도구명> | 스킵 사유)
 - 지속 지식: <옮긴 문서 | 없음>
-- PR: <URL> (draft)
+- PR: #<번호> <URL> (draft)
 
-**Progress**: init → start → approach → test-write → **impl ✓** → verify → pr → done
+**Progress**: init → start → approach(L2·L3) → test-write → **impl ✓** → verify → pr → done
 
 **Next**: `/jira-task verify <TASK-ID>` — 새 세션에서 수용 조건별로 검증합니다
 ---

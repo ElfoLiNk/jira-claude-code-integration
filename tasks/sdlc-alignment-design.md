@@ -224,3 +224,19 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 9. auto 재배치
 10. loop 3패스 + stacked PR + sync
 11. phase-gate config, session-start, README, CLAUDE.md, 버전 0.70.0
+
+## 14. 드라이런 반영 (2026-10-16)
+
+mock Jira·가짜 gh 샌드박스에서 DEMO-1(L1)을 끝까지, DEMO-2(L2, 위험 신호 ④)를 리뷰 요청 준비까지 돌렸다. 단계마다 새 sub-agent가 SKILL.md를 그대로 따랐다. 고친 것:
+
+| 발견 | 조치 |
+|---|---|
+| 먼저 머지된 PR 때문에 열린 PR이 충돌(테스트 파일) — 경로 없음 | `pr-state`에 `mergeable`, sync가 `base-conflict`로 격리, `skills/_shared/base-conflict.md`(rebase → 테스트 충돌은 test-writer·코드는 implementer → 재검증) |
+| start가 등급 확정 전에 Jira 전이·담당자 지정 | 등급 확정을 Step 1.2로 앞당김 |
+| 승인 코멘트로 받은 미결 질문 답이 spec에 반영되지 않음, 표준 spec 양식에 미결 질문 절 없음 | 미결 질문이 있으면 승인 요청 대신 질문(5-a, `openQuestions`), 답은 spec "결정 사항"에 기록 후 승인 요청. auto `awaitingKind` |
+| `jira-context-update.py`가 없는 ctx 파일을 rc=0으로 넘김 → aggregate 갱신 누락(3회) | exit 1, repoRoot는 Read한 값을 리터럴로 |
+| review-log가 worktree에 미커밋 파일로 남음 | review-log·run-log를 메인 레포 로컬로, init이 gitignore 등록 |
+| cachedIssue 기록 방법 부재, start·approach hit 기준 차이로 매번 miss, record-only 단계가 fetchedAt 덮음 | `--cache-issue`, hit = key + fetchedAt, fetchedAt은 status 갱신 때만 |
+| 그 밖의 문서 정합 | test 커밋 메시지(실패·회귀 방지 수), L1 push 조건, Progress 줄 `approach(L2·L3)`, Jira 링크 출처, Mode B 서명, 템플릿 머리 문구, init 안내 문구 |
+
+샌드박스에서 확인한 것: 승인 게이트(PR 작성자 거부·기술 책임자 통과), 미승인 test-write 정지, 역할 hook·토큰 차단, done 머지 확인, aggregate prune, `--artifact` 첨부. 확인하지 못한 것: Workflow 실행(auto·loop), L3, fix 루프, stacked 재정렬, Mode A verify.

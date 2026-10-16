@@ -81,9 +81,10 @@ allowed-tools:
 
 ```bash
 git add <테스트 파일...>
-git commit -m "test(<TASK-ID>): AC-01…AC-0n 실패 테스트"
-git push 2>/dev/null || true     # PR이 있는 L2·L3만. L1은 impl 끝에서 PR을 연다
+git commit -m "test(<TASK-ID>): AC-01…AC-0n 테스트 (실패 <n>, 회귀 방지 <m>)"
 ```
+
+L2·L3는 PR이 이미 있으므로 `git push`한다. L1은 push하지 않는다(impl 끝에서 push하고 PR을 연다).
 
 ### Step 5: Jira와 context
 
@@ -98,9 +99,9 @@ Jira 코멘트(생략이면 사유만):
 ```bash
 python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> test-write "-" \
     "<worktree>/.jira-context.json" "<repoRoot>/.jira-context.json" \
-    --patch '{"activeRole":null,"planApproval":{...},"testWrite":{"commit":"<SHA>","tests":["<파일>"],"failing":<n>,"guards":<n>}}'
+    --patch '{"activeRole":null,"planApproval":{"approver":"<login>","sha":"<sha>","url":"<url>"},"testWrite":{"commit":"<SHA>","tests":["<파일>"],"failing":<n>,"guards":<m>}}'
 ```
-`planApproval`은 이번에 확인했을 때만, `testWriteSkipped`·`testExpectationChanges`는 해당할 때만 넣는다.
+`failing`은 올바른 이유로 실패한 테스트 수, `guards`는 지금도 통과해야 하는 회귀 방지 테스트 수. `planApproval`은 이번에 확인했을 때만(L1·재실행은 키를 빼고), `testWriteSkipped`·`testExpectationChanges`는 해당할 때만 넣는다.
 
 ```
 ---
@@ -109,7 +110,7 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> test-write "-" \
 - 테스트 커밋: <SHA> — 실패 <n>건(올바른 이유), 회귀 방지 <n>건
 - (L2·L3) 승인: @<approver> <sha>
 
-**Progress**: init → start → approach → **test-write ✓** → impl → verify → pr → done
+**Progress**: init → start → approach(L2·L3) → **test-write ✓** → impl → verify → pr → done
 
 **Next**: `/jira-task impl <TASK-ID>` — 새 세션에서 구현합니다(구현 세션은 테스트를 고칠 수 없습니다)
 ---

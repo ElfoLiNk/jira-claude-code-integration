@@ -78,7 +78,7 @@ aggregate에서는 해당 태스크 항목이 제거된다(이력은 `docs/run-l
 - PR 머지 확인: <mergeCommit 7자>
 - Jira 상태: <final-jira-status>
 
-**Progress**: init → start → approach → test-write → impl → verify → pr → **done ✓**
+**Progress**: init → start → approach(L2·L3) → test-write → impl → verify → pr → **done ✓**
 
 **Next**: `/jira-task clean <TASK-ID>` — worktree와 브랜치 정리
 ---

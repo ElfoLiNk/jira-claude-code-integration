@@ -1,4 +1,4 @@
-<!-- 표준 사본: mzd-software-development-standard 00-ai-native-sdlc-process v0.9.0b, templates/work/TASK-ID/intent.md (a599561). 고치지 말고 표준이 바뀌면 통째로 교체한다. -->
+<!-- 표준 사본: mzd-software-development-standard 00-ai-native-sdlc-process v0.9.0b, templates/work/TASK-ID/intent.md (a599561). 이 줄은 플러그인 보관 표시라 산출물에 옮길 때 지운다. 플러그인 유지보수: 사본은 고치지 말고 표준이 바뀌면 통째로 교체. -->
 <!--
 L3 작업에서 work/<작업 ID>/intent.md 로 복사해 씁니다 (SD-COM-ART-001·002).
 발의자의 말로 한 번 적고, 제품 책임자가 고친 뒤 본인 계정으로 승인합니다 (SD-COM-GAT-005).

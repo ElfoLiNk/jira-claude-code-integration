@@ -165,7 +165,7 @@ fi
 - Issue Details (Key, Summary, Type, Priority, Status, Branch, Worktree, Initialized)
 - Description (Jira 이슈 설명)
 - Acceptance Criteria (설명에서 추출)
-- Workflow (`start` → `test` → `review` → `done` 명령 안내)
+- Workflow (`start`(등급 확정) → `approach`(L2·L3) → `test-write` → `impl` → `verify` → 사람이 draft 해제·머지 → `done`, 또는 `auto`)
 
 ### Step 7: Post Comments to Jira
 
@@ -244,7 +244,7 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/register-workspace.js" "$REPO_ROOT"
 - Jira 코멘트 게시됨
 - 컨텍스트 `.jira-context.json`에 저장됨
 
-**Progress**: **init ✓** → start → approach → test-write → impl → verify → pr → done
+**Progress**: **init ✓** → start → approach(L2·L3) → test-write → impl → verify → pr → done
 
 **Next**: `cd <worktree-path>` → `/jira-task start <TASK-ID>`
 ---

@@ -72,7 +72,7 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> pr "<전이 후 status>" \
 - 본문 갱신됨
 - Jira: <변화 없음 | 검토 중으로 전이>
 
-**Progress**: init → start → approach → test-write → impl → verify → **pr** → done
+**Progress**: init → start → approach(L2·L3) → test-write → impl → verify → **pr** → done
 
 **Next**: <draft: 확인 후 `gh pr ready <번호>` | 리뷰 요청됨: 코드 오너 머지 대기 | 머지됨: `/jira-task done <TASK-ID>`>
 ---
