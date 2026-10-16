@@ -155,7 +155,7 @@ worktree 작업 트리와 Jira는 건드리지 않는다. 같은 run 안에서 �
 
 1. **세션 cwd를 worktree로**: Bash `cd`가 아니라 `EnterWorktree({ path: "<worktreePath>" })`. auto launcher의 Read와 Workflow stage agent는 세션 cwd를 본다. EnterWorktree 안에서는 auto 호출과 단순 명령만 하고, git 재정렬·aggregate Edit은 `ExitWorktree({ action: "keep" })`로 main에 돌아와서 한다.
 2. `Skill({ skill: "jira-integration:jira-task-auto", args: "<KEY>" })` — 등급이 있으므로 auto는 묻지 않는다.
-3. `<REPO_ROOT>/docs/run-log/_index.jsonl` 마지막 줄(해당 taskId)의 `status`/`failedStage`/`reason`으로 결과를 판정한다(없으면 auto 출력의 status 키워드).
+3. auto가 렌더링한 Workflow 반환 객체의 `status`/`failedStage`/`reason`으로 결과를 판정한다. EnterWorktree 격리 안에서는 메인 레포 경로에 쓰는 run-log 기록이 막히므로, `<REPO_ROOT>/docs/run-log/_index.jsonl`에 이 taskId의 새 줄이 없으면 4에서 main에 돌아온 뒤 같은 반환 객체로 `append-run-log.py <KEY> - "<worktree ctx>" "<REPO_ROOT>/docs/run-log"`를 대신 실행한다.
 
 | auto status | 처리 |
 |---|---|
