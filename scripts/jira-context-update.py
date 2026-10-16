@@ -9,8 +9,11 @@ Usage:
 done 단계는 aggregate에서 해당 태스크 항목을 **제거**한다 (생명주기 종료 — 이력은 docs/run-log·review-log가 보유).
 --prune-done은 이미 완료된 항목(completedSteps에 done 또는 status가 Done/완료류)을 일괄 제거하는 일회성 정리.
 
---patch '<json>' (v0.58.0): worktree-local 파일에만 top-level 키를 병합한다 (aggregate에는 적용 안 함 —
-    pollution 규칙). implSelfCheck / fixSelfCheck 객체에 ranAt이 없으면 현재 UTC로 채운다.
+--patch '<json>' (v0.58.0): worktree-local 파일에 top-level 키를 병합한다. implSelfCheck / fixSelfCheck 객체에
+    ranAt이 없으면 현재 UTC로 채운다. 값이 null이면 키를 지운다 (v0.70.0).
+    aggregate에는 level / riskSignals / stackedOn만 해당 tasks[i]에 반영한다 (v0.70.0; 나머지는 pollution 규칙).
+    v0.70.0 필드: level("L1"|"L2"|"L3"), riskSignals(위험 신호 번호 목록), activeRole("test-writer"|"implementer"|"verifier"),
+    stackedOn({key, branch, sha} — 앞 태스크 브랜치 위에 쌓은 경우).
     용도: impl/fix 단계가 self-check 기록과 completedSteps 갱신을 Bash 1회로 끝내기.
     step에 "-"를 주면 completedSteps 추가·타임스탬프 기록 없이 patch만 적용한다 (fix loop의 test/review 제거용).
     갱신 후 worktree 파일의 completedSteps를 `completedSteps=[...]`로 출력하므로 재-Read가 필요 없다.
@@ -22,8 +25,8 @@ inserts 'approach' after the later of the two. No-op if already migrated.
 Args:
     TASK-ID    Jira issue key (e.g. MAE-279).
     step       Workflow step name to append to completedSteps (e.g. "merge", "done").
-               Must be one of: discover, create, init, start, approach, impl, test,
-               review, merge, pr, done. Also drives the timestamp field name:
+               Must be one of: discover, create, init, start, approach, test-write,
+               impl, verify, pr, done. Also drives the timestamp field name:
                "<step>At" (e.g. mergedAt, doneAt).
     status     Value to set as top-level `status` and (if present) `cachedIssue.status`.
                **Must be a Jira-verified value** — caller is responsible for fetching
@@ -60,10 +63,15 @@ import sys
 
 # Valid workflow step whitelist. Keep in sync with skill SKILL.md Progress lines
 # and dashboard SDLC_STEPS. `plan`/`design`은 통합되어 `approach`로 대체됨.
+# v0.70.0: test → test-write + verify, review → verify, merge(local) 폐지.
 VALID_STEPS = frozenset({
     "discover", "create", "init", "start", "approach",
-    "impl", "test", "review", "merge", "pr", "done",
+    "test-write", "impl", "verify", "pr", "done",
 })
+
+# --patch에서 aggregate의 해당 tasks[i]에도 반영하는 키 (loop가 큐 전체를 보고 판단하는 값).
+# activeRole 등 나머지는 worktree-local에만 둔다.
+_AGGREGATE_PATCH_KEYS = frozenset({"level", "riskSignals", "stackedOn"})
 
 
 def _now_utc_iso() -> str:
@@ -95,6 +103,7 @@ _AGGREGATE_POLLUTION_KEYS = frozenset({
     "taskId", "branch", "worktreePath", "summary", "priority",
     "status", "completedSteps", "cachedIssue", "parentEpic", "parentStory",
     "implSelfCheck", "fixSelfCheck",
+    "level", "riskSignals", "stackedOn", "activeRole",
 })
 
 
@@ -106,6 +115,17 @@ def _strip_aggregate_pollution(ctx: dict) -> list[str]:
     for k in removed:
         del ctx[k]
     return removed
+
+
+def _apply_patch(target: dict, patch: dict, ts: str) -> None:
+    """top-level 키 병합. 값이 null이면 키를 지운다 (activeRole·stackedOn 해제용)."""
+    for k, v in patch.items():
+        if v is None:
+            target.pop(k, None)
+            continue
+        if k in ("implSelfCheck", "fixSelfCheck") and isinstance(v, dict) and not v.get("ranAt"):
+            v = {**v, "ranAt": ts}
+        target[k] = v
 
 
 def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
@@ -129,9 +149,12 @@ def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
             ctx["tasks"] = [t for t in ctx["tasks"] if t.get("taskId") != task_id]
             updated = len(ctx["tasks"]) < before
         else:
+            agg_patch = {k: v for k, v in (patch or {}).items() if k in _AGGREGATE_PATCH_KEYS}
             for t in ctx["tasks"]:
-                if t.get("taskId") == task_id and step != "-":
-                    _apply_step(t, step, status, ts)
+                if t.get("taskId") == task_id and (step != "-" or agg_patch):
+                    if step != "-":
+                        _apply_step(t, step, status, ts)
+                    _apply_patch(t, agg_patch, ts)
                     updated = True
                     break
         if updated or removed:
@@ -144,11 +167,7 @@ def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
         return f"no {task_id} in aggregate, skipped: {ctx_file}"
     if step != "-":
         _apply_step(ctx, step, status, ts)
-    if patch:
-        for k, v in patch.items():
-            if k in ("implSelfCheck", "fixSelfCheck") and isinstance(v, dict) and not v.get("ranAt"):
-                v = {**v, "ranAt": ts}
-            ctx[k] = v
+    _apply_patch(ctx, patch or {}, ts)
     with open(ctx_file, "w", encoding="utf-8") as f:
         json.dump(ctx, f, indent=2, ensure_ascii=False)
     steps = json.dumps(ctx.get("completedSteps", []), ensure_ascii=False)

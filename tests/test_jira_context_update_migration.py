@@ -122,6 +122,33 @@ class StripAggregatePollutionTest(unittest.TestCase):
         self.assertNotIn("-At", json.dumps(w))
         self.assertEqual(a["tasks"][0]["completedSteps"], ["init"])
 
+    def test_level_goes_to_both_active_role_worktree_only_and_null_deletes(self):
+        wt = self._write({"taskId": "T-1", "completedSteps": ["init"]})
+        agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["init"]}]})
+        patch = {"level": "L2", "riskSignals": [1], "activeRole": "implementer"}
+        module.update_context(str(wt), "T-1", "start", "-", "2026-01-02T00:00:00Z", patch)
+        module.update_context(str(agg), "T-1", "start", "-", "2026-01-02T00:00:00Z", patch)
+        module.update_context(str(wt), "T-1", "-", "-", "2026-01-02T00:00:00Z", {"activeRole": None})
+        with open(wt, encoding="utf-8") as f:
+            w = json.load(f)
+        with open(agg, encoding="utf-8") as f:
+            a = json.load(f)
+        self.assertEqual(w["level"], "L2")
+        self.assertNotIn("activeRole", w)
+        self.assertEqual(a["tasks"][0]["level"], "L2")
+        self.assertEqual(a["tasks"][0]["riskSignals"], [1])
+        self.assertNotIn("activeRole", a["tasks"][0])
+
+    def test_dash_step_with_aggregate_key_updates_aggregate(self):
+        agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["init"]}]})
+        stacked = {"key": "T-0", "branch": "feature/T-0", "sha": "abc1234"}
+        out = module.update_context(str(agg), "T-1", "-", "-", "2026-01-02T00:00:00Z", {"stackedOn": stacked})
+        self.assertIn("aggregate updated", out)
+        with open(agg, encoding="utf-8") as f:
+            a = json.load(f)
+        self.assertEqual(a["tasks"][0]["stackedOn"], stacked)
+        self.assertEqual(a["tasks"][0]["completedSteps"], ["init"])
+
     def test_done_step_prunes_aggregate_entry_but_updates_worktree(self):
         wt = self._write({"taskId": "T-1", "completedSteps": ["merge"]})
         agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["merge"]}, {"taskId": "T-2"}]})
