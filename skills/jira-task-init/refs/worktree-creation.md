@@ -25,9 +25,10 @@ git worktree list | grep "<TASK-ID>"
   ```bash
   git worktree add "$WORKTREE_BASE/<TASK-ID>" "feature/<TASK-ID>"
   ```
-- **둘 다 없음**: 새로 생성
+- **둘 다 없음**: 새로 생성. 원격이 있으면 최신 `origin/<base>`에서 분기한다 (로컬 base에 쌓인 미리뷰 커밋을 끌고 가지 않게, 첫 태스크 전에 1회 fetch)
   ```bash
-  git worktree add -b "feature/<TASK-ID>" "$WORKTREE_BASE/<TASK-ID>" <base-branch>
+  git fetch origin <base-branch> 2>/dev/null && START_POINT="origin/<base-branch>" || START_POINT="<base-branch>"
+  git worktree add -b "feature/<TASK-ID>" "$WORKTREE_BASE/<TASK-ID>" "$START_POINT"
   ```
 
 ## Worktree .gitignore 동기화

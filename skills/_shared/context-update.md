@@ -5,7 +5,7 @@
 ## 호출 변수
 
 - `TASK_ID` — `MAE-123` 등 Jira 이슈 키.
-- `STEP` — `start` / `approach` / `impl` / `test` / `review` / `merge` / `done` 중 하나.
+- `STEP` — `start` / `approach` / `test-write` / `impl` / `verify` / `pr` / `done` 중 하나. 기록 없이 `--patch`만 적용하려면 `-`.
 - `STATUS` — Jira에서 fresh fetch한 실제 status명 (예: `"In Progress"`, `"검토중"`). 단계가 Jira transition을 하지 않으면(record-only) `"-"` 전달 — 기존 status를 보존한다.
 - `WORKTREE_CTX` — 워크트리 cwd의 `.jira-context.json` 절대/상대 경로.
 - `REPO_CTX` — 메인 레포의 `.jira-context.json` (aggregate). `<repoRoot>/.jira-context.json`. 워크트리 안에서는 cwd `.jira-context.json`의 `repoRoot` 필드 또는 `git worktree list | head -1`로 결정.

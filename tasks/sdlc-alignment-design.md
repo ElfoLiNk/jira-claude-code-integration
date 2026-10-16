@@ -3,7 +3,7 @@
 > 기준: `mzd-software-development-standard/00-ai-native-sdlc-process/STANDARD.md` v0.9.0b (이하 `S`), 03 테스트 자동화 10장(`TA`), 04 코드 품질(`CQ`).
 > 브랜치: `feature/sdlc-standard-alignment`. 선행: 0단계 버그 수정(v0.64.2, `2109c08`).
 > 비범위: 멀티 harness 어댑터(3단계, 별도 설계), 표준 레포 수정(§11 피드백 목록만).
-> 상태: 설계 확정(2026-10-16), 구현 중.
+> 상태: P0 구현 완료(v0.70.0, 2026-10-16). 3단계(멀티 harness)는 별도 설계.
 
 ---
 

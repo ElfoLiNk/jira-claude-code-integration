@@ -118,8 +118,8 @@ const INIT_PAYLOAD = () => ({
   tool_input: { skill: 'jira-integration:jira-task-init', args: '' },
 });
 
-// Scenario 1 — approach 없이 impl 호출 → 차단
-runScenario('1. block: impl without approach', () => {
+// Scenario 1 — test-write 없이 impl 호출 → 차단
+runScenario('1. block: impl without test-write', () => {
   const fx = makeFixture({
     taskId: 'TEST-1',
     completedSteps: ['init', 'start'],
@@ -127,7 +127,7 @@ runScenario('1. block: impl without approach', () => {
   try {
     const r = runGate(IMPL_PAYLOAD('TEST-1'), { cwd: fx.dir });
     assert(r.status === 2, `expected exit 2, got ${r.status}; stderr=${preview(r.stderr)}`);
-    assert(r.stderr.includes('approach'), `stderr should mention 'approach'; got=${preview(r.stderr)}`);
+    assert(r.stderr.includes('test-write'), `stderr should mention 'test-write'; got=${preview(r.stderr)}`);
     let parsed;
     try {
       parsed = JSON.parse(r.stdout);
@@ -142,11 +142,11 @@ runScenario('1. block: impl without approach', () => {
 });
 
 // Scenario 2 — 정상 순서 호출 → 통과
-runScenario('2. pass: impl with approach satisfied', () => {
+runScenario('2. pass: impl with test-write satisfied', () => {
   const fx = makeFixture({
     taskId: 'TEST-2',
-    completedSteps: ['init', 'start', 'approach'],
-    artifacts: ['docs/approach/TEST-2.approach.md'],
+    completedSteps: ['init', 'start', 'approach', 'test-write'],
+    artifacts: ['work/TEST-2/plan.md'],
   });
   try {
     const r = runGate(IMPL_PAYLOAD('TEST-2'), { cwd: fx.dir });

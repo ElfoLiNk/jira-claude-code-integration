@@ -19,7 +19,7 @@ function main() {
   const lines = [];
 
   lines.push('Jira integration plugin active. Use /jira to check connection status.');
-  lines.push('Available commands: /jira [setup] (status/wizard), /jira-task [discover|create|init|start|approach|impl|test|review|merge|pr|done|report|status|auto|loop|clean] <TASK-ID>');
+  lines.push('Available commands: /jira [setup] (status/wizard), /jira-task [discover|create|init|start|approach|test-write|impl|verify|pr|done|report|status|auto|loop|clean] <TASK-ID>');
 
   // Check for active task context
   const contextPath = path.join(process.cwd(), '.jira-context.json');
@@ -34,18 +34,21 @@ function main() {
         lines.push(`Status: ${context.status || 'In Progress'}`);
 
         // Show workflow progress
-        const steps = ['discover', 'create', 'init', 'start', 'approach', 'impl', 'test', 'review', 'merge', 'pr', 'done'];
+        const steps = ['discover', 'create', 'init', 'start', 'approach', 'test-write', 'impl', 'verify', 'pr', 'done'];
         const completed = context.completedSteps || [];
         const progress = steps.map(s => completed.includes(s) ? `${s} ✓` : s).join(' → ');
         lines.push(`Progress: ${progress}`);
+        if (context.level) lines.push(`Level: ${context.level}`);
+        if (context.activeRole) lines.push(`Active role: ${context.activeRole}`);
 
-        // Detect existing PDCA documents for session continuity
+        // Detect existing work/<KEY>/ artifacts for session continuity
         const taskId = context.taskId;
         const docsFound = [];
         const docPaths = [
-          { label: 'Approach', path: `docs/approach/${taskId}.approach.md` },
-          { label: 'Test Report', path: `docs/test/${taskId}.test-report.md` },
-          { label: 'Review', path: `docs/review/${taskId}.review.md` },
+          { label: 'Intent', path: `work/${taskId}/intent.md` },
+          { label: 'Spec', path: `work/${taskId}/spec.md` },
+          { label: 'Plan', path: `work/${taskId}/plan.md` },
+          { label: 'Verification', path: `work/${taskId}/evidence/verification.md` },
         ];
         for (const doc of docPaths) {
           const fullPath = path.join(process.cwd(), doc.path);
@@ -62,8 +65,8 @@ function main() {
         // Suggest next step based on completedSteps
         const nextStepMap = {
           discover: 'create', create: 'init',
-          init: 'start', start: 'approach', approach: 'impl',
-          impl: 'test', test: 'review', review: 'merge', merge: 'pr', pr: 'done'
+          init: 'start', start: context.level === 'L1' ? 'test-write' : 'approach', approach: 'test-write',
+          'test-write': 'impl', impl: 'verify', verify: 'pr', pr: 'done'
         };
         const lastCompleted = [...completed].reverse().find(s => steps.includes(s));
         if (lastCompleted && nextStepMap[lastCompleted]) {

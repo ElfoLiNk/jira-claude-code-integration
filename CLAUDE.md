@@ -12,10 +12,10 @@
 
 - `skills/` — `/jira-task` SKILL.md 프롬프트 (단계별 1개)
 - `commands/` — 슬래시 커맨드 정의
-- `agents/` — 서브에이전트 정의 (예: jira-reviewer)
+- `agents/` — 서브에이전트 정의 (jira-reviewer = verify 단계 검증 세션)
 - `hooks/` — phase-gate 훅 + 동기화 스크립트 (`hooks/hooks.json` 자동 로드)
 - `scripts/` — 공용 헬퍼 (`jira-attach.sh`, `jira-context-update.py`, dashboard 서버 등)
-- `templates/` — 문서 템플릿 (approach/test-report/review/report)
+- `templates/` — 문서 템플릿 (`sdlc/` 표준 산출물·PR 양식 사본, requirements, report)
 - `tests/` — 플러그인 테스트
 - `docs/` — 내부 문서 (`mcp-atlassian-tools.md`, requirements/plan/design/test 산출물)
 
@@ -33,19 +33,20 @@ atlassian MCP 서버는 **선택**(`/jira setup --mcp`, 대화 중 ad-hoc 질의
 
 - **Markdown for Jira comments**: Jira 코멘트는 마크다운으로 작성.
 
-- **Cache-First Fetch** (approach/impl/test/review/done): 호출 직전 `.jira-context.json`의 `cachedIssue`를 먼저 확인.
+- **Cache-First Fetch** (approach/test-write/impl/verify/done): 호출 직전 `.jira-context.json`의 `cachedIssue`를 먼저 확인.
   1. `cachedIssue.key === <TASK-ID>`면 그 값 사용 → `jira_get_issue` 호출 **생략**.
   2. miss면 본래 fields/comment_limit으로 fetch 후 `cachedIssue` 갱신.
   3. 강제 새로고침은 사용자가 `cachedIssue`를 수동 삭제.
   4. `cachedIssue`는 **worktree-local context에만** 기록한다 — `tasks[]`가 있는 aggregate 파일 최상위에는 절대 기록 금지 (스키마 오염; `jira-context-update.py`가 발견 시 자동 제거).
 
 - **공용 스크립트 lookup**: 워크트리 cwd에서는 플러그인 `scripts/`가 직접 보이지 않으므로 호출 직전 lookup으로 절대 경로를 결정한다. 단일 출처: `skills/_shared/script-lookup.md`. 각 스킬은 호출 직전 그 파일을 Read한 뒤 `SCRIPT_NAME` / `OUT_VAR`를 셋업하고 lookup 블록을 실행.
-  - `jira-attach.sh` (approach/test/review): Jira 첨부 업로드. 못 찾으면 첨부만 스킵, 워크플로 진행.
-  - `jira-context-update.py` (start/approach/impl/test/review/merge/done): worktree-local + aggregate `.jira-context.json` 두 개의 `completedSteps`/`status`/`<step>At`/`cachedIssue` 갱신.
+  - 첨부 업로드는 `jira-cli.py attach <KEY> <file> --artifact`(approach/verify — `<KEY>.<파일명>`으로 올리고 본인이 올린 같은 이름을 교체). `jira-attach.sh`는 호환 래퍼.
+  - `jira-context-update.py` (start/approach/test-write/impl/verify/pr/done): worktree-local + aggregate `.jira-context.json` 두 개의 `completedSteps`/`status`/`<step>At`/`cachedIssue` 갱신.
     호출: `python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> <step> <status> <ctx-file> [<ctx-file>...]`.
-    `status="-"`는 status/cachedIssue.status를 그대로 보존(Jira transition 없는 record-only 단계용). 표준 호출 스니펫: `skills/_shared/context-update.md`.
+    `status="-"`는 status/cachedIssue.status를 그대로 보존(Jira transition 없는 record-only 단계용). `--patch`로 `level`·`riskSignals`·`stackedOn`(aggregate에도 반영)과 `activeRole`·`planApproval` 등(worktree만)을 기록하고, 값이 `null`이면 키를 지운다. 표준 호출 스니펫: `skills/_shared/context-update.md`.
+  - `sdlc-gate.py` (approach/test-write/pr/done/loop): 산출물 승인(`check <KEY> <intent|spec|plan>`)과 PR 상태(`pr-state <KEY>`)를 GitHub·git 사실로 판정한다. 승인을 LLM이 판단하지 않는다 — 스킬은 exit code와 JSON만 따른다. 승인 형식·판정 규칙은 스크립트 docstring, 설계는 `tasks/sdlc-alignment-design.md` §6.
   - `ensure-workflow-dir.py`(setup, auto 실패 시): 플러그인 설치 경로를 사용자 settings.json의 `permissions.additionalDirectories`에 등록. Workflow 도구가 `scriptPath`를 cwd·추가 디렉터리 안의 파일로 제한하므로 auto의 전제 조건이다.
-  - 그 외: `propagate-mcp-config.sh`(init), `append-review-log-wrapper.sh`(review), `cleanup-worktree-mcp.py`(done), `auto.workflow.js`(auto — Workflow `scriptPath`로 실행, bash 호출 아님), `append-run-log.py`(auto — 실행 결과를 `docs/run-log/_index.jsonl`에 기록), `detect-lint.sh`(impl/review/fix — 선언된 lint/format 도구 판정 1회 호출).
+  - 그 외: `propagate-mcp-config.sh`(init), `append-review-log-wrapper.sh`(verify), `cleanup-worktree-mcp.py`(done), `auto.workflow.js`(auto — Workflow `scriptPath`로 실행, bash 호출 아님), `append-run-log.py`(auto — 실행 결과를 `docs/run-log/_index.jsonl`에 기록), `detect-lint.sh`(impl/verify/fix — 선언된 lint/format 도구 판정 1회 호출).
   - `clean-worktree.py`(clean): **worktree 삭제의 유일한 경로.** `git worktree remove`는 Windows에서 worktree 안의 junction/dir symlink를 따라 들어가 대상(메인 레포 `node_modules` → workspace 링크 → `packages/**`)까지 지운다 — `--force` 없이도, 실측 git 2.53 (2026-08-26). 스크립트는 링크를 먼저 끊고 0개 검증 후에만 git을 호출하며, 메인 레포 tracked 파일 소실을 사후 감지한다. 스킬·에이전트가 `git worktree remove`/재귀 삭제를 직접 실행하지 않도록 `hooks/scripts/guard-worktree-remove.js`(PreToolUse)가 Bash/PowerShell의 `git worktree remove`를 거부한다. 회귀 테스트: `tests/test_clean_worktree_links.py`. dashboard `routes/cleanup.js`도 동일 순서.
   - **auto 경유 시 lookup 생략**: auto launcher가 `scriptsDir`를 Workflow args로 넘기고 stage prompt가 절대 경로를 제시한다. 스킬 본문의 lookup 블록은 "prompt에 경로가 없을 때만" 실행 (호출 1회 ≈ 10초 — 의식 호출 최소화 원칙).
 
@@ -57,9 +58,16 @@ atlassian MCP 서버는 **선택**(`/jira setup --mcp`, 대화 중 ad-hoc 질의
 
 - **요구사항 문서 ↔ 티켓 연결**: 요구사항 문서가 내용의 정본이고, 티켓 description의 `Requirements:` 출처 줄과 문서 노드의 `[<KEY>]` 표기로 양방향 연결한다. `create --from-requirements`가 쓰고 `approach`가 읽는다. 규약 단일 출처는 `skills/_shared/requirements-link.md` — 스킬 본문에 형식을 다시 적지 않는다.
 
-- **Progress 추적**: 각 스킬은 완료 시 `.jira-context.json`의 `completedSteps`에 자기 단계를 추가(중복 방지). 유효 단계: `discover`, `create`, `init`, `start`, `approach`, `impl`, `test`, `review`, `merge`, `pr`, `done`. `done`은 worktree-local에 기록하고 **aggregate에서는 항목을 제거**한다 (완료 태스크를 큐 파일에 누적하지 않음 — 이력은 run-log/review-log). 기존 누적분은 `jira-context-update.py --prune-done <aggregate>`로 일괄 정리. Completion Summary의 Progress `✓`는 `completedSteps`에서 생성. (`plan`/`design`은 MAE-350에서 `approach`로 통합되어 제거됨; 기존 task의 stale 흔적은 마이그레이션 로직이 처리.)
+- **Progress 추적**: 각 스킬은 완료 시 `.jira-context.json`의 `completedSteps`에 자기 단계를 추가(중복 방지). 유효 단계: `discover`, `create`, `init`, `start`, `approach`, `test-write`, `impl`, `verify`, `pr`, `done` (v0.70.0 — `test`/`review`/`merge`는 폐지. `pr`은 사람이 draft를 풀어 리뷰를 요청한 시점). `done`은 worktree-local에 기록하고 **aggregate에서는 항목을 제거**한다 (완료 태스크를 큐 파일에 누적하지 않음 — 이력은 run-log/review-log). 기존 누적분은 `jira-context-update.py --prune-done <aggregate>`로 일괄 정리. Completion Summary의 Progress `✓`는 `completedSteps`에서 생성. (`plan`/`design`은 MAE-350에서 `approach`로 통합되어 제거됨; 기존 task의 stale 흔적은 마이그레이션 로직이 처리.)
 
-- **Approach 문서에 코드 스니펫 금지** (토큰 낭비).
+- **SDLC 표준 정합 (v0.70.0)**: 전사 표준 `mzd-software-development-standard/00-ai-native-sdlc-process`를 따른다. 설계·결정: `tasks/sdlc-alignment-design.md`.
+  - 등급은 start가 확정해 context `level` + Jira 라벨 `sdlc-L1|L2|L3`에 기록한다(단일 출처 `skills/_shared/sdlc-level.md`). 이후 단계는 issuetype으로 등급을 추정하지 않는다. create/discover의 분해 형태는 `single`/`story`/`tree`로 등급과 이름을 나눈다.
+  - 산출물은 사용자 레포 `work/<KEY>/`(intent·spec·plan·evidence)에 커밋하고 Jira에는 사본을 첨부한다. 양식은 `templates/sdlc/`의 표준 사본 — 고치지 말고 표준이 바뀌면 통째로 교체한다.
+  - 역할 분리: test-write(`test-writer`) / impl(`implementer`) / verify(`verifier`)는 서로 다른 세션이고, context `activeRole`을 `hooks/scripts/guard-test-files.js`가 읽어 쓰기를 막는다.
+  - 에이전트는 승인하지 않는다: `APPROVE <artifact> <sha>` 줄은 jira-cli와 `guard-approval.js`가 거부한다. draft 해제·머지는 사람. 로컬 병합 없음. PR 생성·본문 규약은 `skills/_shared/pr-body.md`.
+  - 커밋은 단계가 만든 파일만 명시적으로 add한다(`git add -A` 금지).
+
+- **산출물(spec·plan 등)에 코드 스니펫 금지** (토큰 낭비).
 
 ## JIRA_DEFAULT_PROJECT Scoping Rule
 

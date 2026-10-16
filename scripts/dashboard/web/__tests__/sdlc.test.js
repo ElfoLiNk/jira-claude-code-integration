@@ -3,7 +3,7 @@ import { getStepState, SDLC_STEPS } from '../src/constants/sdlc.js';
 
 const ALL_STEPS = SDLC_STEPS.map(s => s.id);
 
-// 참고: SDLC_STEPS는 `init`을 제외한 7단계 (start, approach, impl, test, review, merge, done).
+// 참고: SDLC_STEPS는 `init`을 제외한 7단계 (start, approach, test-write, impl, verify, pr, done).
 // `init`은 worktree 존재 자체가 init 완료를 의미하므로 stepper에서 제외.
 // payload(`completedSteps`)에 init이 포함되어 있어도 SDLC_STEPS에 없으므로 영향 없음.
 // `plan` + `design`은 단일 `approach` 단계로 통합됨.
@@ -16,12 +16,12 @@ describe('getStepState', () => {
 
   // U2
   it('U2 — active 단계 인식 (순차)', () => {
-    expect(getStepState('impl', ['start', 'approach'])).toBe('active');
+    expect(getStepState('test-write', ['start', 'approach'])).toBe('active');
   });
 
   // U3
   it('U3 — pending 단계 인식', () => {
-    expect(getStepState('test', ['start', 'approach'])).toBe('pending');
+    expect(getStepState('verify', ['start', 'approach'])).toBe('pending');
   });
 
   // U4

@@ -30,9 +30,9 @@ _STAGE_KEYS = [
     ("init", ("initializedAt",)),
     ("start", ("startAt", "startedAt")),
     ("approach", ("approachAt",)),
+    ("test-write", ("test-writeAt",)),
     ("impl", ("implAt",)),
-    ("test", ("testAt",)),
-    ("review", ("reviewAt",)),
+    ("verify", ("verifyAt",)),
 ]
 
 

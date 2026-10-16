@@ -47,15 +47,15 @@ Display the available workflow commands:
 | `/jira-task epic [set <키\|이름>\|show\|clear]` | 프로젝트 Epic 스코프(`.jira-epic.json`) 설정 — 이후 create가 이 Epic 아래에 이슈 생성 |
 | `/jira-task create [힌트]` | 신규 Jira 이슈를 대화형으로 생성 (서브태스크/의존성/에픽 연결 포함) |
 | `/jira-task init [N]` | Fetch my top N assigned tasks and create worktrees for each |
-| `/jira-task auto <TASK-ID>` | Auto-execute full workflow (start → approach → impl → test → review) |
-| `/jira-task loop` | Drain the init'ed task queue — auto + local merge per task, rebase between tasks |
-| `/jira-task start <TASK-ID>` | Start working on a task (fetch context, create branch, transition to In Progress) |
-| `/jira-task approach <TASK-ID>` | Generate a level-aware approach document (plan + design 통합) |
-| `/jira-task impl <TASK-ID>` | Implement based on approach document |
-| `/jira-task test <TASK-ID>` | Run tests (Playwright E2E, unit) and report to Jira |
-| `/jira-task review <TASK-ID>` | Run code review and post results to Jira |
-| `/jira-task pr <TASK-ID>` | Create pull request and link to Jira |
-| `/jira-task done <TASK-ID>` | Complete task (PR, transition status, post summary) |
+| `/jira-task auto <TASK-ID>` | 다음 사람 게이트까지 자동 진행 (L2·L3 승인 대기 / 리뷰 요청 준비됨에서 멈춤) |
+| `/jira-task loop [prep\|plan\|build\|sync]` | init된 큐를 사람 게이트 단위 패스로 처리, 끝에 사람 할 일 리포트 |
+| `/jira-task start <TASK-ID>` | 작업 시작 — worktree, 등급(L1/L2/L3) 확정, In Progress 전이 |
+| `/jira-task approach <TASK-ID>` | L2·L3 산출물(`work/<KEY>/` intent·spec·plan) 작성, draft PR 승인 요청 |
+| `/jira-task test-write <TASK-ID>` | 승인 확인 후 수용 조건별 실패 테스트를 먼저 커밋 |
+| `/jira-task impl <TASK-ID>` | 테스트를 통과시키는 구현 (테스트 수정 불가), 지속 지식 옮기기 |
+| `/jira-task verify <TASK-ID>` | 새 컨텍스트에서 수용 조건별 검증, `evidence/verification.md` |
+| `/jira-task pr <TASK-ID>` | PR 본문 재생성, 리뷰 요청되면 Jira 검토 중 전이 |
+| `/jira-task done <TASK-ID>` | PR 머지 확인 후 Jira 완료 전이 |
 | `/jira-task report` | 내 할당 이슈 현황 리포트 |
 
 ## 3. Available jira-cli Subcommands

@@ -3,17 +3,18 @@
  * `init`은 worktree 존재 자체가 init 완료를 의미하므로 stepper에서 제외한다.
  * `completedSteps` 페이로드에는 init이 들어있을 수 있으나 표시 대상이 아니다.
  * `plan` + `design`은 단일 `approach` 단계로 통합되었다.
+ * v0.70.0: test → test-write(구현 전) + verify, review → verify, 로컬 merge 폐지, pr = 리뷰 요청됨.
  *
  * @type {ReadonlyArray<{id: string, label: string}>}
  */
 export const SDLC_STEPS = Object.freeze([
   { id: 'start',    label: 'start'    },
-  { id: 'approach', label: 'approach' },
-  { id: 'impl',     label: 'impl'     },
-  { id: 'test',     label: 'test'     },
-  { id: 'review',   label: 'review'   },
-  { id: 'merge',    label: 'merge'    },
-  { id: 'done',     label: 'done'     },
+  { id: 'approach',   label: 'approach'   },
+  { id: 'test-write', label: 'test-write' },
+  { id: 'impl',       label: 'impl'       },
+  { id: 'verify',     label: 'verify'     },
+  { id: 'pr',         label: 'pr'         },
+  { id: 'done',       label: 'done'       },
 ]);
 
 /**

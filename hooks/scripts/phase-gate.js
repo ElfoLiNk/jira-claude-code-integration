@@ -17,11 +17,8 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_UPWARD_LEVELS = 6;
-const SKILL_PATTERN = /^(?:jira-integration:)?jira-task-([a-z]+)$/;
+const SKILL_PATTERN = /^(?:jira-integration:)?jira-task-([a-z-]+)$/;
 const BYPASS_ENV_VAR = 'JIRA_PHASE_GATE_BYPASS';
-
-// Issuetype names that map to L1 (single task-level work)
-const L1_ISSUETYPES = new Set(['subtask', 'task', 'bug', '작업', '버그', '하위 작업']);
 
 function isEnvTruthy(value) {
   if (typeof value !== 'string') return false;
@@ -33,29 +30,14 @@ function isEnvTruthy(value) {
 }
 
 /**
- * Determine breakdown level from context.
- * Priority: context.breakdownLevel → cachedIssue.issuetype fallback.
- * Returns "L1" | "L2" | "L3".
+ * SDLC level from context (start에서 확정, skills/_shared/sdlc-level.md).
+ * Returns "L1" | "L2" | "L3". 미확정이면 L2 (fail-safe: hard-block).
  */
 function detectLevel(context) {
-  if (context && typeof context.breakdownLevel === 'string') {
-    const bl = context.breakdownLevel.trim().toUpperCase();
-    if (bl === 'L1' || bl === 'L2' || bl === 'L3') return bl;
+  if (context && typeof context.level === 'string') {
+    const lv = context.level.trim().toUpperCase();
+    if (lv === 'L1' || lv === 'L2' || lv === 'L3') return lv;
   }
-  // Fallback: derive from cachedIssue.issuetype (flat string per cache convention)
-  const rawIssuetype =
-    context && context.cachedIssue
-      ? (typeof context.cachedIssue.issuetype === 'string'
-          ? context.cachedIssue.issuetype
-          : context.cachedIssue.issue_type && typeof context.cachedIssue.issue_type.name === 'string'
-            ? context.cachedIssue.issue_type.name
-            : '')
-      : '';
-  const issuetype = rawIssuetype.toLowerCase();
-  if (issuetype === 'epic') return 'L3';
-  if (issuetype === 'story') return 'L2';
-  if (L1_ISSUETYPES.has(issuetype)) return 'L1';
-  // Unknown → L2 (fail-safe: hard-block until level is explicitly set)
   return 'L2';
 }
 

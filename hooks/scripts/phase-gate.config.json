@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "_comment": "Phase gate dependency graph. Customize: copy this file and edit `phases.<name>.requires`/`artifacts`/`enforced` for your team's workflow. {TASK_ID} in fileGlob is replaced at runtime. Note: L1 tasks (breakdownLevel=L1 or Subtask/Task/Bug issuetype) receive advisory warnings instead of hard-blocks regardless of `enforced`.",
+  "_comment": "Phase gate dependency graph. Customize: copy this file and edit `phases.<name>.requires`/`artifacts`/`enforced` for your team's workflow. {TASK_ID} in fileGlob is replaced at runtime. Note: L1 tasks (context level=L1) receive advisory warnings instead of hard-blocks regardless of `enforced` — so test-write's approach requirement only binds L2·L3.",
   "phases": {
     "discover": {
       "requires": [],
@@ -20,36 +20,29 @@
     },
     "approach": {
       "requires": ["start"],
+      "enforced": true
+    },
+    "test-write": {
+      "requires": ["approach"],
       "artifacts": [
-        { "fileGlob": "docs/approach/{TASK_ID}.approach.md" }
+        { "fileGlob": "work/{TASK_ID}/plan.md" }
       ],
       "enforced": true
     },
     "impl": {
-      "requires": ["approach"],
-      "artifacts": [
-        { "fileGlob": "docs/approach/{TASK_ID}.approach.md" }
-      ],
+      "requires": ["test-write"],
       "enforced": true
     },
-    "test": {
+    "verify": {
       "requires": ["impl"],
       "enforced": true
     },
-    "review": {
-      "requires": ["test"],
-      "enforced": true
-    },
-    "merge": {
-      "requires": ["review"],
-      "enforced": true
-    },
     "pr": {
-      "requires": ["merge"],
+      "requires": ["verify"],
       "enforced": true
     },
     "done": {
-      "requires": ["pr"],
+      "requires": ["verify"],
       "enforced": true
     }
   }

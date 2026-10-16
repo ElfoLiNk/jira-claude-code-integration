@@ -1,8 +1,8 @@
 ---
 name: jira-task
-description: Main workflow command for Jira-integrated development. Routes to specialized skills based on the action argument. Usage /jira-task [action] [TASK-ID]. Actions epic, create, discover, init, start, approach, impl, test, review, merge, pr, done, report, status, clean. Triggers jira-task, jira task, create task, new task, discover requirements, init tasks, setup tasks, start task, begin task, approach task, implement task, test task, review task, create PR, complete task, task report, clean worktree, set epic, epic scope, 에픽 설정, 이번 작업은 epic, 태스크 생성, 이슈 등록, 요구사항 수집, 현황 리포트, 작업 환경 세팅, 작업 시작, 접근 설계, 구현 시작, 테스트 실행, 코드 리뷰, PR 만들어, 작업 완료, 워크트리 정리
+description: Main workflow command for Jira-integrated development. Routes to specialized skills based on the action argument. Usage /jira-task [action] [TASK-ID]. Actions epic, create, discover, init, start, approach, test-write, impl, verify, pr, done, report, status, auto, loop, clean. Triggers jira-task, jira task, create task, new task, discover requirements, init tasks, setup tasks, start task, begin task, approach task, write tests, implement task, verify task, review task, create PR, complete task, task report, clean worktree, set epic, epic scope, 에픽 설정, 이번 작업은 epic, 태스크 생성, 이슈 등록, 요구사항 수집, 현황 리포트, 작업 환경 세팅, 작업 시작, 접근 설계, 구현 시작, 테스트 먼저, 검증, 코드 리뷰, PR 만들어, 작업 완료, 워크트리 정리
 user-invocable: true
-argument-hint: "[epic|create|discover|init|start|approach|impl|test|review|pr|merge|done|report|auto|loop|clean] [TASK-ID 또는 힌트/주제]"
+argument-hint: "[epic|create|discover|init|start|approach|test-write|impl|verify|pr|done|report|auto|loop|clean] [TASK-ID 또는 힌트/주제]"
 allowed-tools:
   - Read
   - Write
@@ -21,7 +21,7 @@ Parse the user's argument to determine the action and task ID, then execute the 
 
 The argument format is: `[action] [TASK-ID 또는 힌트]`
 
-- **action**: One of `epic`, `create`, `discover`, `init`, `start`, `approach`, `impl`, `test`, `review`, `pr`, `merge`, `done`, `report`, `status`, `auto`, `loop`, `clean`. `plan`/`design`은 `approach`의 deprecated alias로 허용된다 (자동 라우팅).
+- **action**: One of `epic`, `create`, `discover`, `init`, `start`, `approach`, `test-write`, `impl`, `verify`, `pr`, `done`, `report`, `status`, `auto`, `loop`, `clean`. `plan`/`design`은 `approach`, `review`는 `verify`의 alias로 허용된다 (자동 라우팅). `test`·`merge`는 폐지 안내.
 - **TASK-ID**: Jira issue key (e.g., `PROJ-123`). Optional — if omitted, auto-detect from context. Not required for `epic`, `create`, `discover`, `init`, `report`, `status`, `loop`.
 - For `create`, any text after the action is treated as an initial hint (자연어 설명) and passed to the skill as-is.
 - For `discover`, any text after the action (자연어 주제) 및 `--lite`, `--from <파일경로>` 등의 플래그는 원문 그대로 스킬에 위임된다.
@@ -103,7 +103,7 @@ Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-start", args: 
 ### `approach <TASK-ID>`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-approach", args: "<TASK-ID>" })`
 
-기존 `plan` + `design` 두 단계를 단일 단계로 통합한 level-aware approach 문서를 생성한다 (L1/L2/L3).
+L2·L3 산출물(`work/<KEY>/` intent·spec·plan)을 쓰고 draft PR에서 승인을 요청한 뒤 멈춘다. L1은 산출물이 없다.
 
 ### `plan <TASK-ID>` / `design <TASK-ID>` (deprecated alias)
 
@@ -149,10 +149,10 @@ Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-auto", args: "
 
 다음 사람 게이트까지 자동 진행한다 — L2·L3는 approach 뒤 승인 대기에서, 승인 뒤에는 test-write → impl → verify 후 "리뷰 요청 준비됨"에서 멈춘다. draft 해제·머지·done은 포함하지 않는다.
 
-### `loop [--skip <단계,...>]`
+### `loop [prep|plan|build|sync]`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-loop", args: "<loop 이후의 전체 인자를 그대로 전달>" })`
 
-init된 태스크 큐 전체를 순차 소진 — 태스크마다 `auto` + local merge(In Review)를 실행하고 잔여 worktree를 rebase. TASK-ID 불필요 (aggregate `.jira-context.json`의 큐 사용). `done`은 포함하지 않음 (main 확인 후 수동).
+init된 태스크 큐를 사람 게이트 단위 패스로 돈다 — prep(등급 일괄 확정) / plan(L2·L3 산출물 → 승인 대기) / build(test-write → impl → verify → 리뷰 요청 준비됨) / sync(PR 상태 → Jira, stacked 재정렬). 인자 없으면 prep → sync → plan → build. TASK-ID 불필요 (aggregate `.jira-context.json`의 큐 사용).
 
 ### `clean [TASK-ID ...] | --all | --list`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-clean", args: "<TASK-ID(s) 또는 --all 또는 --list>" })`
@@ -189,7 +189,7 @@ Quick status check — `.jira-context.json`에서 활성 태스크 정보를 읽
 - **Done**: 실제로 수행한 작업을 간결하게 기술 (예: "PROJ-123 기획 문서 생성")
 - **Used**: 사용한 스킬(`jira-task-approach` 등), 에이전트(`jira-reviewer` 등), jira-cli 서브커맨드(`get`, `comment` 등)를 나열. 사용하지 않았으면 생략
 - **Next**: `.jira-context.json`의 `completedSteps` 기반으로 다음 워크플로 단계를 추천. 워크플로 외 작업이면 맥락에 맞는 다음 작업 추천
-  - 워크플로 단계 순서: `discover → create → init → start → approach → impl → test → review → merge → pr → done`
-  - `review` 완료 후 next는 반드시 `merge` (`/jira-task merge <TASK-ID>`)
-  - `merge` 완료 후 next는 `pr` (`/jira-task pr <TASK-ID>`)
+  - 워크플로 단계 순서: `discover → create → init → start → approach(L2·L3) → test-write → impl → verify → pr → done`
+  - L2·L3 `approach` 뒤는 승인 대기 — 승인되면 `test-write`
+  - `verify` 통과 뒤는 사람이 draft를 푼다(`gh pr ready <번호>`). 머지는 코드 오너, 머지 뒤 `done`
 - 워크플로와 무관한 단순 질의응답에서는 생략 가능

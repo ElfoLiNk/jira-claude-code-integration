@@ -24,7 +24,7 @@ inserts 'approach' after the later of the two. No-op if already migrated.
 
 Args:
     TASK-ID    Jira issue key (e.g. MAE-279).
-    step       Workflow step name to append to completedSteps (e.g. "merge", "done").
+    step       Workflow step name to append to completedSteps (e.g. "verify", "done").
                Must be one of: discover, create, init, start, approach, test-write,
                impl, verify, pr, done. Also drives the timestamp field name:
                "<step>At" (e.g. mergedAt, doneAt).

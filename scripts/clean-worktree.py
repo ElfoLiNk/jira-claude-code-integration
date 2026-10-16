@@ -419,7 +419,8 @@ def main():
 
     if args.all:
         tasks = find_cleanable_tasks(repo_root)
-        done_tasks = [t for t in tasks if t.get("status") in ("Done", "In Review")
+        # v0.70.0: In Review는 PR이 열려 있다는 뜻이라 정리 대상이 아니다 (merge는 구버전 로컬 병합 기록)
+        done_tasks = [t for t in tasks if t.get("status") == "Done"
                       or "merge" in t.get("completedSteps", [])
                       or "done" in t.get("completedSteps", [])]
 

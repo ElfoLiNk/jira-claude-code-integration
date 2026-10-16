@@ -1,7 +1,7 @@
 'use strict';
 
 // SDLC 단계 순서 (퍼널 집계용) — store.js SDLC_STEPS와 일치
-const SDLC_STEPS = ['start', 'approach', 'impl', 'test', 'review', 'pr', 'done'];
+const SDLC_STEPS = ['start', 'approach', 'test-write', 'impl', 'verify', 'pr', 'done'];
 
 /**
  * worktree store snapshot을 기반으로 SDLC 퍼널과 에이전트 처리량을 조립.

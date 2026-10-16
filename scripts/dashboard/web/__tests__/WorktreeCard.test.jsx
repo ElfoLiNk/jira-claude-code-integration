@@ -64,7 +64,7 @@ describe('WorktreeCard — 풀 데이터', () => {
 
 // U20, U21
 describe('WorktreeCard — stepper 통합', () => {
-  it('U20 — completedSteps 있을 때 stepper 렌더 + impl이 active (init은 시각화에서 제외)', () => {
+  it('U20 — completedSteps 있을 때 stepper 렌더 + test-write가 active (init은 시각화에서 제외)', () => {
     const worktree = {
       ...fullWorktree,
       completedSteps: ['init', 'start', 'approach'],
@@ -72,7 +72,7 @@ describe('WorktreeCard — stepper 통합', () => {
     render(<WorktreeCard worktree={worktree} />);
     const stepper = document.querySelector('.wt-stepper');
     expect(stepper).not.toBeNull();
-    const implStep = document.querySelector('[aria-label="impl: active"]');
+    const implStep = document.querySelector('[aria-label="test-write: active"]');
     expect(implStep?.className).toContain('wt-stepper__step--active');
   });
 

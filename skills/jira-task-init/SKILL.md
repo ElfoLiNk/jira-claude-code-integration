@@ -125,7 +125,7 @@ fi
 요약:
 - 브랜치+worktree 모두 있으면 → "Already exists — skipped"
 - 브랜치만 있으면 → `git worktree add "$WORKTREE_BASE/<TASK-ID>" "feature/<TASK-ID>"`
-- 둘 다 없으면 → `git worktree add -b "feature/<TASK-ID>" "$WORKTREE_BASE/<TASK-ID>" <base-branch>`
+- 둘 다 없으면 → `git worktree add -b "feature/<TASK-ID>" "$WORKTREE_BASE/<TASK-ID>" origin/<base-branch>` (원격 없으면 로컬 base)
 - 생성 후 worktree `.gitignore`에 `.jira-context.json` / `TASK-README.md` 항목 추가 (없으면)
 - **중요**: worktree는 반드시 원본 레포 **상위 디렉토리** 안에 생성 (`<parent>/<project>_worktree/<TASK-ID>`)
 
@@ -241,7 +241,7 @@ node "$CLAUDE_PLUGIN_ROOT/scripts/register-workspace.js" "$REPO_ROOT"
 - Jira 코멘트 게시됨
 - 컨텍스트 `.jira-context.json`에 저장됨
 
-**Progress**: **init ✓** → start → approach → impl → test → review → merge → pr → done
+**Progress**: **init ✓** → start → approach → test-write → impl → verify → pr → done
 
 **Next**: `cd <worktree-path>` → `/jira-task start <TASK-ID>`
 ---

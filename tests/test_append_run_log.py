@@ -26,17 +26,17 @@ class StageDurationsTest(unittest.TestCase):
             "initializedAt": "2026-08-22T15:44:06Z",
             "startAt": "2026-08-22T15:49:22Z",
             "approachAt": "2026-08-22T15:53:29Z",
-            # impl 누락 → test는 approach 기준
-            "testAt": "2026-08-22T15:59:04Z",
-            "reviewAt": "2026-08-22T16:04:35Z",
+            # impl 누락 → test-write는 approach 기준
+            "test-writeAt": "2026-08-22T15:59:04Z",
+            "verifyAt": "2026-08-22T16:04:35Z",
         }
         d = module.stage_durations(ctx)
         self.assertEqual(d["queueWaitSec"], 316)
         self.assertNotIn("start", d)
         self.assertEqual(d["approach"], 247)
         self.assertNotIn("impl", d)
-        self.assertEqual(d["test"], 335)
-        self.assertEqual(d["review"], 331)
+        self.assertEqual(d["test-write"], 335)
+        self.assertEqual(d["verify"], 331)
         self.assertNotIn("init", d)
 
     def test_startedAt_fallback_is_untrusted(self):
