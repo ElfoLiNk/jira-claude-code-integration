@@ -272,6 +272,7 @@ function verifyPrompt(delta) {
     `unmet에는 미충족 AC, Critical finding, 실패한 검사를 한 줄씩 넣어라 (예: "AC-02 PAID 주문 취소가 관리자 외에도 허용됨 — src/order/cancel.ts:42"). 통과면 빈 배열.`,
     `prUrl에 PR URL을 넣어라.`,
     `Skill Step 4(review-log 기록)를 빠뜨리지 마라 — 실패해도 계속하지만 생략하지는 않는다.`,
+    `Skill Step 5의 PR 본문 "검증" 절 갱신도 빠뜨리지 마라 — 재검증이면 직전 결과를 이번 결과로 바꾼다.`,
     ``,
     returnFooter,
   ].join('\n')

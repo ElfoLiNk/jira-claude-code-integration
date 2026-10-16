@@ -80,7 +80,8 @@ def main():
         if not isinstance(f, dict):
             continue
         raw_sev = f.get("severity", "Info")
-        mapped_sev = SEV_MAP.get(raw_sev, "info")
+        # "warning"·"Warnings"처럼 대소문자·복수형이 달라도 같은 등급으로 (전부 info로 떨어지던 문제)
+        mapped_sev = SEV_MAP.get(str(raw_sev).strip().capitalize().rstrip("s"), "info")
         redacted_msg = redact(f.get("message", ""))
         entry_finding = {
             "id": f"F-{i:03d}",

@@ -242,3 +242,9 @@ mock Jira·가짜 gh 샌드박스에서 DEMO-1(L1)을 끝까지, DEMO-2(L2, 위�
 샌드박스에서 확인한 것: 승인 게이트(PR 작성자 거부·기술 책임자 통과), 미승인 test-write 정지, 역할 hook·토큰 차단, done 머지 확인, aggregate prune, `--artifact` 첨부. 확인하지 못한 것: Workflow 실행(auto·loop), L3, fix 루프, stacked 재정렬, Mode A verify.
 
 충돌 경로 재확인: DEMO-2를 `base-conflict.md`대로 해결(테스트 충돌을 test-writer로, 코드는 자동 병합) → 재검증 통과 → 머지까지 갔다. 이 과정에서 `--remove-step`(aggregate의 verify 제거)과 rebase 뒤 test 커밋 SHA 재탐색을 추가했다.
+
+### 14.1 headless 실행 확인 (2026-10-17)
+
+브랜치 플러그인을 `claude -p --plugin-dir`로 실제 로드해 auto(Workflow)·loop 4패스·L3·fix 루프·stacked·Mode A verify를 돌렸다(DEMO-3 L3, DEMO-4 L1, DEMO-5 L2 stacked). 확인: L3 intent→spec→plan 승인 3회 후 build, 미결 질문 경로(답 → spec 결정 사항 → 승인 요청), fix 루프 1회 수렴, sync의 done·stacked 해제·base-conflict 격리, Mode A의 jira-reviewer(opus) 위임. 고친 것: triage(AC가 적은 작업도 fix 루프), 승인을 산출물 내용 기준으로(stacked rebase 후 승인 거부), EnterWorktree 안 run-log 기록 차단, review-log 단계 생략·래퍼 경로·심각도 매핑, delta 재검증의 PR 본문 미갱신.
+
+남은 제약: headless(-p)에서는 모델이 턴을 끝내면 백그라운드 Workflow가 같이 끊긴다(대화형은 완료 알림이 다시 깨운다). 3단계 runner 설계의 전제 조건이다.
