@@ -153,7 +153,7 @@ worktree 작업 트리와 Jira는 건드리지 않는다. 같은 run 안에서 �
 
 1. **세션 cwd를 worktree로**: Bash `cd`가 아니라 `EnterWorktree({ path: "<worktreePath>" })`. auto launcher의 Read와 Workflow stage agent는 세션 cwd를 본다. EnterWorktree 안에서는 auto 호출과 단순 명령만 하고, git 재정렬·aggregate Edit은 `ExitWorktree({ action: "keep" })`로 main에 돌아와서 한다.
 2. `Skill({ skill: "jira-integration:jira-task-auto", args: "<KEY>" })` — 등급이 있으므로 auto는 묻지 않는다.
-3. worktree `docs/run-log/_index.jsonl` 마지막 줄(해당 taskId)의 `status`/`failedStage`/`reason`으로 결과를 판정한다(없으면 auto 출력의 status 키워드).
+3. `<REPO_ROOT>/docs/run-log/_index.jsonl` 마지막 줄(해당 taskId)의 `status`/`failedStage`/`reason`으로 결과를 판정한다(없으면 auto 출력의 status 키워드).
 
 | auto status | 처리 |
 |---|---|
@@ -206,5 +206,5 @@ sync 결과: 완료 <KEY...> / 검토 중 <KEY...> / 재정렬 <KEY...>
 REPO_ROOT에서 Bash 1회:
 ```bash
 printf '%s' '{"status":"loop-run","passes":[<돈 패스>],"passed":[<completed KEY>],"awaiting":[<승인 대기 KEY>],"quarantined":[{"taskId":"<KEY>","deferredKind":"<kind>"}]}' \
-  | python3 "<append-run-log.py>" - - - "docs/run-log" --kind=loop-run
+  | python3 "<append-run-log.py>" - - - "<REPO_ROOT>/docs/run-log" --kind=loop-run
 ```

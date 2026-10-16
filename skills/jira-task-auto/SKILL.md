@@ -141,7 +141,7 @@ worktree에서 직접 고친 뒤: /jira-task verify <TASK-ID>
 어떤 status든 반환 객체를 run-log에 1줄 기록한다. Bash 1회:
 
 ```bash
-printf '%s' '<Workflow 반환 객체 JSON 그대로>' | python3 "<scriptsDir>/append-run-log.py" <TASK-ID> - ".jira-context.json" "docs/run-log"
+printf '%s' '<Workflow 반환 객체 JSON 그대로>' | python3 "<scriptsDir>/append-run-log.py" <TASK-ID> - ".jira-context.json" "<repoRoot>/docs/run-log"
 ```
 
 실패해도 결과에는 영향 없음 — 경고 한 줄만.

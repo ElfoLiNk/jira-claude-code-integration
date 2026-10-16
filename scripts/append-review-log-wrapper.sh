@@ -9,13 +9,15 @@
 # Usage:
 #   SUBAGENT_RESULT_JSON='<json>' bash scripts/append-review-log-wrapper.sh <TASK-ID> [<log-dir>]
 #
-# log-dir 기본값: docs/review-log
+# log-dir 기본값: 메인 레포의 docs/review-log (v0.70.0 — worktree에 쓰면 PR에 섞이고, PR끼리 _index.jsonl이 충돌한다.
+#   하니스 관측용 로컬 데이터라 init이 .gitignore에 등록한다)
 # 실패는 워크플로를 차단하지 않도록 caller가 set +e로 감싸 호출한다.
 
 set +e
 
 TASK_ID="${1:?TASK-ID required}"
-LOG_DIR="${2:-docs/review-log}"
+MAIN_ROOT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/.." 2>/dev/null && pwd)"
+LOG_DIR="${2:-${MAIN_ROOT:-.}/docs/review-log}"
 
 # 스크립트 경로: 자기 자신과 같은 디렉토리의 append-review-log.py
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

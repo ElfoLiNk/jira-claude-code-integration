@@ -399,8 +399,8 @@ python3 <plugin>/scripts/ensure-workflow-dir.py    # ~/.claude/settings.json의 
 ├── docs/
 │   ├── requirements/<주제>.requirements.md   # discover 산출물
 │   ├── policies/ glossary.md domain/ architecture/ decisions/   # 지속 지식 (impl이 옮김, 프로젝트가 도입한 경우)
-│   ├── review-log/                           # 검증 판정 로그 (jsonl)
-│   └── run-log/                              # auto/loop 실행 로그 (jsonl)
+│   ├── review-log/                           # 검증 판정 로그 (jsonl, 메인 레포 로컬 — gitignore)
+│   └── run-log/                              # auto/loop 실행 로그 (jsonl, 메인 레포 로컬 — gitignore)
 └── ../<프로젝트>_worktree/<KEY>/
     ├── .jira-context.json      # 태스크 하나의 상태 (gitignore)
     └── TASK-README.md          # 이슈 요약 (gitignore)
@@ -408,7 +408,7 @@ python3 <plugin>/scripts/ensure-workflow-dir.py    # ~/.claude/settings.json의 
 
 - 산출물 양식은 플러그인 `templates/sdlc/`의 표준 사본입니다. 프로젝트에 `.github/pull_request_template.md`가 있으면 PR 본문은 그것을 따릅니다.
 - 머지된 `work/` 폴더는 고치지 않습니다. 이전 작업의 결정을 바꾸려면 새 작업으로 처리합니다.
-- `review-log`와 `run-log`는 하니스 자체의 관측 데이터입니다. 스키마는 각 디렉터리의 README 참고.
+- `review-log`와 `run-log`는 하니스 자체의 관측 데이터라 PR에 넣지 않고 메인 레포에만 쌓습니다(`init`이 `.gitignore`에 등록). 스키마는 각 디렉터리의 README 참고.
 
 ---
 
