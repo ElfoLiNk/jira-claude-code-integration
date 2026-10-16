@@ -134,8 +134,12 @@ Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-verify", args:
 ### `pr <TASK-ID>`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-pr", args: "<TASK-ID>" })`
 
-### `merge <TASK-ID>`
-Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-local-merge", args: "<TASK-ID>" })`
+### `merge <TASK-ID>` (폐지)
+로컬 병합은 v0.70.0에서 폐지되었다 — 에이전트 코드는 PR로만 기본 브랜치에 들어간다(SD-COM-AUT-005). 다음 메시지만 출력하고 아무 Skill도 호출하지 않는다:
+
+```
+⚠️ merge는 폐지되었습니다. draft를 풀어 리뷰를 요청하고(gh pr ready), 코드 오너가 머지한 뒤 /jira-task done <TASK-ID>를 실행하세요.
+```
 
 ### `done <TASK-ID>`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-done", args: "<TASK-ID>" })`

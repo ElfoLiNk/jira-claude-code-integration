@@ -1,6 +1,6 @@
 # Shared: Transition Verify (SSOT)
 
-`jira-local-merge`/`jira-task-done` 등에서 Jira transition 직후 실제 status를 확정하는 공용 절차.
+`jira-task-pr`/`jira-task-done` 등에서 Jira transition 직후 실제 status를 확정하는 공용 절차.
 
 ## When to Read
 

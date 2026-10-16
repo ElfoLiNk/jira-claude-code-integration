@@ -1,6 +1,6 @@
 ---
 name: jira-task-done
-description: "Complete a Jira task — generates a summary, transitions the issue to Done, and posts to Jira. Triggers: jira-task done, complete task; 작업 완료, 태스크 완료."
+description: "Complete a Jira task after its PR is merged — confirms the merge on GitHub, posts the merge commit, and transitions the issue to Done. Triggers: jira-task done, complete task; 작업 완료, 태스크 완료."
 user-invocable: false
 argument-hint: "<TASK-ID>"
 allowed-tools:
@@ -11,132 +11,75 @@ allowed-tools:
   - Grep
 ---
 
-# jira-task-done: Complete a Jira Task
+# jira-task-done: 머지 확인 후 완료
 
 **Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
 
-## Prerequisites
-- A feature branch `feature/<TASK-ID>` must exist with commits
-- Jira 자격증명 설정됨 (`skills/_shared/jira-cli.md`)
+## Overview
+
+PR이 기본 브랜치에 **머지된 것을 GitHub에서 확인한 뒤에만** Jira를 완료로 옮긴다. 머지는 코드 오너가 한다(SD-COM-ROL-003). `loop sync`도 같은 절차를 태스크마다 부른다.
 
 ## Workflow
 
-Jira 호출은 `python3 "<scripts>/jira-cli.py" …` (규약: `skills/_shared/jira-cli.md`). 호출 prompt가 `<scripts>/` 절대 경로를 줬으면 그대로 쓰고, 없으면 `skills/_shared/script-lookup.md`로 `SCRIPT_NAME="jira-cli.py"` 1회 해석.
+Jira 호출은 `python3 "<scripts>/jira-cli.py" …` (`skills/_shared/jira-cli.md`). 경로가 prompt에 없으면 `skills/_shared/script-lookup.md`로 해석한다.
 
-### Step 1: Verify Context
+### Step 1: 머지 확인
 
-Check for `.jira-context.json` to get the active task context.
-If TASK-ID is provided as argument, use that instead.
-
-`completedSteps`에 `"merge"` 또는 `"pr"`가 있으면 본 단계는 컨텍스트만으로 충분 — git 호출 불필요. 둘 다 없으면 (예외 경로: 사용자가 merge/pr 없이 done을 호출) 그때만 `git branch --list "feature/<TASK-ID>"`로 브랜치 존재 확인.
-
-### Step 2: Fetch Current Issue Status
-
-**Cache-first**: `.jira-context.json`의 `cachedIssue`를 먼저 확인 (CLAUDE.md "Issue Cache" 참고). hit이면 호출 생략하고 캐시된 `status`만 사용. miss이면 `python3 "<scripts>/jira-cli.py" get <TASK-ID>` 호출 (압축 JSON의 `summary`/`status`/`issuetype`/`assignee`) 후 cache 갱신. **단 done 단계는 상태 전이 직전이므로 사용자가 신선도가 의심되면 cache 무시하고 재조회할 수 있음**.
-
-### Step 3: Summarize Changes
-
-**기본 경로 (merge/pr 완료 후 done 호출)**: git 호출 0회.
-
-merge 단계에서 이미 Jira 코멘트(`## Task Merged Locally`)에 변경 파일·삽입/삭제 라인 수가 게시되어 있고, plan/design/impl/test 문서에 모든 요약이 있다. Step 2의 cachedIssue 코멘트 또는 PDCA 문서를 그대로 인용한다.
-
-**예외 경로 (merge/pr 없이 done 직접 호출)**: 그때만 squash·merge 형태에 따라 적절한 git 명령으로 stat 1회 조회.
-
-- squash-merged onto base: `git show --stat $(git log --grep="<TASK-ID>" -1 --format=%H <base-branch>)`
-- 일반 merge: `git diff --stat <base-branch>..feature/<TASK-ID>`
-- 판단 기준: `<base>..feature/<TASK-ID>`가 비어 있으면 squash, 비어있지 않으면 일반.
-
-### Step 4: Generate Completion Summary
-
-다음 출처를 우선순위대로 인용해 완료 요약 생성 (git 재조회 금지):
-
-1. `.jira-context.json`의 cachedIssue 코멘트 중 `## Task Merged Locally` 또는 `## Pull Request Created` (변경 파일/라인 수)
-2. `docs/approach/<TASK-ID>.approach.md` (기획 + 설계 요약. 없을 때만 legacy `docs/plan/<TASK-ID>.plan.md` / `docs/design/<TASK-ID>.design.md`)
-3. `docs/test/<TASK-ID>.test-report.md` (테스트 결과)
-
-### Step 5: Post Completion Report to Jira
-
-Step 5의 요약을 scratchpad md 파일로 쓰고 `python3 "<scripts>/jira-cli.py" comment <TASK-ID> @<파일>`로 게시:
-
-```
-## Task Completed: <TASK-ID>
-
-**브랜치**: feature/<TASK-ID>
-**커밋 수**: <count>개
-**변경 파일**: <count>개 (+<추가> -<삭제>)
-
-### Summary
-- **Plan**: <기획 요약>
-- **Design**: <설계 요약>
-- **Changes**: <구현 변경사항 요약>
-
-### Key Changes
-<구현된 내용 간단 설명>
+```bash
+python3 "<scripts>/sdlc-gate.py" pr-state <TASK-ID>
 ```
 
-### Step 6: Transition Issue
+- `state != "merged"`면 **거부**하고 멈춘다: `PR이 아직 머지되지 않았습니다 (<state>). 코드 오너가 머지한 뒤 다시 실행하세요.` draft면 `/jira-task pr <TASK-ID>`로 상태를 안내한다.
+- `merged`면 `mergeCommit`(SHA)과 `url`을 이후 단계에 쓴다.
+- context가 없으면(worktree를 이미 지움) 메인 레포에서 실행해도 된다 — `pr-state`는 브랜치 이름으로 PR을 찾는다.
 
-Use `python3 "<scripts>/jira-cli.py" transitions <TASK-ID>` to fetch available transitions, then use `python3 "<scripts>/jira-cli.py" transition <TASK-ID> "<id|상태명>"` to move the issue:
-- Try "In Review" first (common for PR-based workflows)
-- If "In Review" is not available, try "Done"
-- If both fail, inform the user of available transitions
-- 코멘트는 `comment` 서브커맨드로 별도 (전이에 섞지 않음)
+### Step 2: 완료 코멘트
 
-### Step 6.5: Verify Transition (SSOT)
+요약 출처는 다시 계산하지 않고 인용한다: L2·L3는 `work/<TASK-ID>/spec.md`의 수용 조건 수와 `evidence/verification.md`의 판정, L1은 PR 본문 "변경 내용"·"검증". 파일이 기본 브랜치로 옮겨갔으면 `git show <mergeCommit>:work/<TASK-ID>/...`로 읽는다.
 
-`Read skills/_shared/transition-verify.md` — `transition` 출력의 `status`가 SSOT이며 별도 재조회는 하지 않는다. `<final-jira-status>` 결정 규칙, 실패 정책을 그대로 따르고 결과 status를 Step 8의 `<final-jira-status>` 인자로 전달.
+```markdown
+## Task Completed
+- PR: <URL> (머지됨)
+- 머지 커밋: <mergeCommit>
+- 등급: <L1|L2|L3> / 수용 조건 <n>/<n> 충족
+- 산출물: `work/<TASK-ID>/` (L2·L3)
+```
 
-### Step 7: Cleanup MCP Config from Worktree Entry
+### Step 3: 전이
 
-`.jira-context.json`의 `worktreePath`를 읽어 `~/.claude.json`에서 해당 경로의 `mcpServers`를 제거한다.
-entry 전체는 삭제하지 않고 `mcpServers` 키만 제거하여 Claude Code의 다른 메타데이터는 보존한다.
+```bash
+python3 "<scripts>/jira-cli.py" transitions <TASK-ID>
+python3 "<scripts>/jira-cli.py" transition <TASK-ID> "<Done|완료 류 id>"
+```
+`Read skills/_shared/transition-verify.md` — `transition` 출력의 `status`가 `<final-jira-status>`다. 실패하면 가능한 전이 목록을 보여 주고 멈춘다.
 
-스크립트 경로 결정은 `Read skills/_shared/script-lookup.md` 후 lookup 블록 실행:
+### Step 4: 워크트리 MCP 설정 정리
 
+context `worktreePath`가 있으면:
 ```bash
 SCRIPT_NAME="cleanup-worktree-mcp.py" OUT_VAR="CLEANUP_MCP_PY"
 # Read skills/_shared/script-lookup.md and execute its lookup block here
-[ -n "$CLEANUP_MCP_PY" ] && python3 "$CLEANUP_MCP_PY" "<worktreePath from .jira-context.json>"
+[ -n "$CLEANUP_MCP_PY" ] && python3 "$CLEANUP_MCP_PY" "<worktreePath>"
 ```
 
-- `.jira-context.json`에 `worktreePath`가 없으면 스킵
-- `~/.claude.json`에 해당 경로 entry가 없어도 스킵 (오류 아님)
-
-### Step 8: Update Context & Completion Summary
-
-워크트리의 `.jira-context.json`과 `<repoRoot>/.jira-context.json` **양쪽**을 공용 스크립트로 갱신한다. 한쪽만 갱신하면 dashboard collector가 worktree-local 파일만 읽기 때문에 done step이 누락된 채 표시된다. 스크립트 경로 결정은 `Read skills/_shared/script-lookup.md` 후 lookup 블록 실행:
+### Step 5: context와 요약
 
 ```bash
-SCRIPT_NAME="jira-context-update.py" OUT_VAR="JIRA_CTX_UPDATE_PY"
-# Read skills/_shared/script-lookup.md and execute its lookup block here
 python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> done "<final-jira-status>" \
     "<worktreePath>/.jira-context.json" \
     "<repoRoot>/.jira-context.json"
 ```
-
-- `<final-jira-status>`: **Step 6.5에서 `transition` 출력의 `status`로 확보한 Jira 실제 status명** (예: `"완료"`, `"Done"`). transition 시도값을 그대로 쓰지 말 것 — Jira workflow에 따라 다른 이름으로 떨어질 수 있음.
-- worktree 경로는 aggregate의 `tasks[].worktreePath`에서 조회. worktree 컨텍스트가 부재하면(이미 cleaned 등) 해당 인자만 빼고 호출 — 스크립트가 missing 파일을 자동 skip
-
-스크립트는 다음을 일괄 처리한다:
-- `completedSteps`에 `"done"` 추가 (중복 방지)
-- `status`를 `<final-jira-status>`로 set
-- `doneAt`에 현재 UTC ISO 8601 (Z suffix) 기록
-- `cachedIssue.status` / `cachedIssue.fetchedAt`도 함께 갱신 (cachedIssue가 있을 때만)
-- aggregate vs worktree 형식 자동 감지 — **aggregate에서는 해당 태스크 항목을 제거**한다 (done = 생명주기 종료; 이력은 `docs/run-log`·`docs/review-log`가 보유. worktree-local 파일은 `clean`이 worktree와 함께 정리)
-
-아래 형식으로 완료 요약 출력:
+aggregate에서는 해당 태스크 항목이 제거된다(이력은 `docs/run-log`·`docs/review-log`). worktree 파일이 없으면 그 인자만 뺀다.
 
 ```
 ---
 ✅ **Task Done** — <TASK-ID>
 
-- Jira 상태: Done (또는 In Review)
-- 완료 리포트 Jira에 게시됨
-- `.jira-context.json` 업데이트됨
-- 워크트리 MCP config 정리됨 (`~/.claude.json`)
+- PR 머지 확인: <mergeCommit 7자>
+- Jira 상태: <final-jira-status>
 
-**Progress**: init → start → approach → impl → test → review → merge → pr → **done ✓**
+**Progress**: init → start → approach → test-write → impl → verify → pr → **done ✓**
 
-🎉 모든 단계가 완료되었습니다!
+**Next**: `/jira-task clean <TASK-ID>` — worktree와 브랜치 정리
 ---
 ```
