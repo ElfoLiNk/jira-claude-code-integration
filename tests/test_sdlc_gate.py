@@ -127,6 +127,24 @@ class CheckTest(unittest.TestCase):
         code, _ = self.run_check([("dev-choi", f"APPROVE plan {self.sha}")])
         self.assertEqual(code, 0)
 
+    def test_rebased_branch_keeps_approval_when_artifacts_identical(self):
+        # 승인 뒤 다른 base 위로 rebase: 승인 SHA는 이력에서 빠지지만 spec·plan 내용은 같다
+        git(self.d, "checkout", "-q", "-b", "other", "HEAD~0")
+        git(self.d, "checkout", "-q", "--orphan", "newbase")
+        git(self.d, "rm", "-rqf", ".")
+        Path(self.d, "base.txt").write_text("b", encoding="utf-8")
+        git(self.d, "add", "base.txt")
+        git(self.d, "commit", "-qm", "base")
+        git(self.d, "checkout", "-q", "other", "--", "AGENTS.md", "work")
+        git(self.d, "commit", "-qm", "docs(K-1): spec·plan (rebased)")
+        code, out = self.run_check([("dev-choi", f"APPROVE plan {self.sha}")])
+        self.assertEqual(code, 0, out)
+        Path(self.d, "work", "K-1", "plan.md").write_text("plan v2", encoding="utf-8")
+        git(self.d, "commit", "-qam", "docs(K-1): plan 수정")
+        code, out = self.run_check([("dev-choi", f"APPROVE plan {self.sha}")])
+        self.assertEqual(code, 1)
+        self.assertIn("work/K-1/plan.md", out["rejected"][0]["reason"])
+
     def test_unknown_sha(self):
         code, out = self.run_check([("dev-choi", "APPROVE plan deadbee")])
         self.assertEqual(code, 1)

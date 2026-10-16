@@ -114,8 +114,8 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 - **승인 코멘트 형식**: PR 코멘트 한 줄 `APPROVE <artifact> <sha7 이상>`. 예: `APPROVE plan 3f1b7d5`.
 - **판정** (모두 만족해야 통과):
   1. 코멘트 작성자가 해당 산출물의 승인자 목록에 있다.
-  2. SHA가 PR 브랜치 이력에 있다.
-  3. 그 SHA 이후 `work/<KEY>/<artifact>.md`가 바뀌지 않았다(`git diff <sha> HEAD -- <file>` 비어 있음). 바뀌었으면 재승인 필요(GAT-006 확장: AC뿐 아니라 파일 전체 기준).
+  2. SHA 커밋이 저장소에 있다.
+  3. 그 SHA 시점과 HEAD의 `work/<KEY>/<artifact>.md`가 같다(`git diff <sha> HEAD -- <file>` 비어 있음). 바뀌었으면 재승인 필요(GAT-006 확장: AC뿐 아니라 파일 전체 기준). 이력 포함 여부는 보지 않는다 — stacked 재정렬·base 충돌 rebase로 SHA가 바뀌어도 내용이 같으면 승인 유효(드라이런 DEMO-5).
   4. 위험 신호가 있는 L2·L3 plan은 승인자가 기술 책임자 목록에 있다(GAT-003).
 - **승인자 목록 출처**: 프로젝트 `AGENTS.md`의 "## 승인자" 표(`| 역할 | 담당 |`)에서 "담당" 칸의 `@계정`을 GitHub 계정으로 읽는다. 표가 없거나 비었으면 §12-3대로 처리한다.
 - **L2 작업 담당자 = PR 작성자**인 경우 GitHub Approve는 쓸 수 없으므로 코멘트 형식이 유일한 경로다.

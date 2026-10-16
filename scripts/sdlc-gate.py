@@ -19,8 +19,10 @@ check 판정 — 아래를 모두 만족하는 코멘트가 하나라도 있으�
        L2는 spec과 plan을 함께 승인하므로 `APPROVE plan`이 spec.md·plan.md 둘 다를 덮는다.
        승인자 목록은 프로젝트 AGENTS.md "## 승인자" 표의 @계정. 표가 없거나 비었으면
        PR 작성자 또는 CODEOWNERS 계정을 인정하고 warnings에 남긴다.
-    2. SHA가 HEAD 이력에 있다.
-    3. 그 SHA 이후 대상 파일(work/<KEY>/<artifact>.md)이 바뀌지 않았다.
+    2. SHA 커밋이 저장소에 있다.
+    3. 그 SHA 시점의 대상 파일(work/<KEY>/<artifact>.md)과 HEAD의 대상 파일이 같다.
+       승인은 산출물 내용에 대한 것이라, stacked 재정렬이나 base 충돌 해결 rebase로 SHA가 이력에서 빠져도
+       내용이 같으면 승인은 유효하다. 내용이 바뀌었으면 재승인이 필요하다.
 
 --level / --risk를 생략하면 worktree-local .jira-context.json의 level / riskSignals를 쓴다.
 
@@ -167,8 +169,6 @@ def check_sha(sha: str, files: list[str]) -> str | None:
     if p.returncode != 0:
         return f"SHA {sha}를 찾을 수 없다"
     full = p.stdout.strip()
-    if _git(["merge-base", "--is-ancestor", full, "HEAD"]).returncode != 0:
-        return f"SHA {sha}가 현재 브랜치 이력에 없다"
     for f in files:
         if _git(["cat-file", "-e", f"{full}:{f}"]).returncode != 0:
             return f"SHA {sha} 시점에 {f}가 없다"
