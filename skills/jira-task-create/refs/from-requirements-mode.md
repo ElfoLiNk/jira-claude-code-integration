@@ -18,23 +18,23 @@ import 모드에서는 본 단계가 자동 분해 판단(Step 3/4)을 대체한
 2. 헤딩이 없으면 → **E4** 처리 (자연어 모드 폴백 제안 후 사용자 confirm).
 3. 헤딩 발견 후 다음 `## ` 헤딩 또는 EOF 직전까지의 텍스트를 섹션 본문으로 잘라낸다.
 
-## Step 1.5-3. 루트 노드 감지 → 분해 레벨 분기
+## Step 1.5-3. 루트 노드 감지 → 분해 형태 분기
 
 섹션 본문의 **첫 번째 의미 있는 불릿 라인**의 토큰을 본다 (불릿 기호 `-`/`*` 무시, 공백 trim 후):
 
-| 첫 자식 토큰 | 분해 레벨 | 후속 파서 |
+| 첫 자식 토큰 | 분해 형태 | 후속 파서 |
 |---|---|---|
-| `**작업**:` 또는 `작업:` | **L1 Single** | Step 1.5-4A |
-| `**Story**:` 또는 `Story:` (Epic 노드 없이) | **L2 Story-only** | Step 1.5-4B |
-| `**Epic**:` 또는 `Epic:` | **L3 Tree** | Step 1.5-4C |
+| `**작업**:` 또는 `작업:` | **single** | Step 1.5-4A |
+| `**Story**:` 또는 `Story:` (Epic 노드 없이) | **story** | Step 1.5-4B |
+| `**Epic**:` 또는 `Epic:` | **tree** | Step 1.5-4C |
 
 식별 실패 → **E11** (자연어 폴백 제안 후 사용자 confirm).
 
-확정한 레벨을 `breakdownLevel` 메타로 보존한다 (`"L1"` | `"L2"` | `"L3"`).
+확정한 형태를 `breakdownShape` 메타로 보존한다 (`"single"` | `"story"` | `"tree"`).
 
-## Step 1.5-4A. L1 Single 파싱
+## Step 1.5-4A. single 파싱
 
-L1 출력 템플릿(discover `breakdown-level.md`):
+single 출력 템플릿(discover `breakdown-shape.md`):
 
 ```markdown
 - **작업**: <한 줄 요약>
@@ -43,18 +43,18 @@ L1 출력 템플릿(discover `breakdown-level.md`):
 ```
 
 규칙:
-- `**작업**:` 라인 1건만 허용. 2건 이상이면 **E5에 준하여** 보강 입력 요청 또는 종료(L1은 단건 전제).
+- `**작업**:` 라인 1건만 허용. 2건 이상이면 **E5에 준하여** 보강 입력 요청 또는 종료(single은 단건 전제).
 - 자식 라인(`범위:`, `검증:`)은 옵셔널 — 발견되면 description 본문으로 합친다.
-- 의존성/링크 없음. blocks 표기 무시(L1에는 sibling이 없음).
+- 의존성/링크 없음. blocks 표기 무시(single에는 sibling이 없음).
 
-`ImportPayload`(L1):
-- `breakdownLevel: "L1"`
+`ImportPayload`(single):
+- `breakdownShape: "single"`
 - `single: { summary, description? }` — `description?`은 자식 라인을 줄바꿈 합친 본문.
 - `epic`/`stories[]`/`links[]`는 모두 비어 있음.
 
-## Step 1.5-4B. L2 Story-only 파싱
+## Step 1.5-4B. story 파싱
 
-L2 출력 템플릿:
+story 출력 템플릿:
 
 ```markdown
 - **Story**: <스토리 한 줄 요약>
@@ -66,22 +66,22 @@ L2 출력 템플릿:
 
 규칙:
 - Story 노드 1건. 2건 이상이면 **E5**.
-- Story의 자식만 Sub-task로 인정 (`Sub-task <N>:` 또는 `Subtask <N>:`). L2 표준은 단일 인덱스(`1`,`2`,...)지만 사용자가 L3 템플릿을 흉내 낸 dot 인덱스(`1.1`,`1.2`,...)도 관용 처리한다 — Story가 1건뿐이라 의미 충돌이 없다.
+- Story의 자식만 Sub-task로 인정 (`Sub-task <N>:` 또는 `Subtask <N>:`). story 표준은 단일 인덱스(`1`,`2`,...)지만 사용자가 tree 템플릿을 흉내 낸 dot 인덱스(`1.1`,`1.2`,...)도 관용 처리한다 — Story가 1건뿐이라 의미 충돌이 없다.
 - Sub-task의 `범위:` 자식 줄은 1.5-4C와 동일하게 `scope`로 보존한다.
 - 들여쓰기/불릿 규칙은 1.5-4C와 동일(2/4-space, `-`/`*` 혼용 허용).
 - `(blocks: <N>)` 표기는 같은 Story의 sibling Subtask 인덱스 참조만 허용. 위반은 **E7**(skip + 경고).
 
-`ImportPayload`(L2):
-- `breakdownLevel: "L2"`
+`ImportPayload`(story):
+- `breakdownShape: "story"`
 - `epic: null`
 - `stories[]`: 1건 — `{index: 1, summary, description?, subtasks[]}`
 - `links[]`: 같은 Story 아래 sibling 참조만.
 
-**주의**: 본 레벨에서 자동 Epic 생성을 **하지 않는다**. (이전 E6 폴백 제거 — Scope Decision #3 참고)
+**주의**: 본 형태에서 자동 Epic 생성을 **하지 않는다**. (이전 E6 폴백 제거 — Scope Decision #3 참고)
 
-## Step 1.5-4C. L3 Tree 파싱 (기존 동작)
+## Step 1.5-4C. tree 파싱 (기존 동작)
 
-L3 출력 템플릿(표준):
+tree 출력 템플릿(표준):
 
 ```markdown
 - **Epic**: <에픽 1줄 요약>
@@ -100,13 +100,13 @@ L3 출력 템플릿(표준):
 - **들여쓰기**: 2-space 또는 4-space 모두 허용. 같은 문서 내 혼용 시 첫 자식의 들여쓰기 폭을 기준으로 삼고, 그와 다른 라인이 등장하면 경고 (**E10**). 파싱 자체가 불가하면 종료.
 - **불릿 기호**: `-` 또는 `*` 모두 허용. 같은 문서 내 혼용 허용.
 - **노드 식별**:
-  - `**Epic**:` 또는 `Epic:` 으로 시작 → **Epic 노드** (트리 루트, L3 정확히 1개)
+  - `**Epic**:` 또는 `Epic:` 으로 시작 → **Epic 노드** (트리 루트, tree 정확히 1개)
   - `**Story <N>**:` 또는 `Story <N>:` → **Story 노드**
   - `Sub-task <N>.<M>:` 또는 `Subtask <N>.<M>:` → **Subtask 노드**
   - `범위:` 또는 `Scope:` → 직전 Subtask 노드의 **scope 자식 줄**. 값(파일/모듈 문자열)을 해당 subtask의 `scope`에 보존한다. Subtask 노드보다 먼저 등장하거나 Story 직속이면 무시 + 디버그 로그.
   - 그 외 일치하지 않는 라인은 무시(주석으로 간주)하되 디버그 로그 1줄을 남긴다.
 - **부모 매핑**:
-  - Epic 0개는 L3에서 발생할 수 없음 (Step 1.5-3에서 이미 분기). 발생 시 파서 결함으로 간주.
+  - Epic 0개는 tree에서 발생할 수 없음 (Step 1.5-3에서 이미 분기). 발생 시 파서 결함으로 간주.
   - Story `<N>`의 부모는 Epic.
   - Subtask `<N>.<M>`의 부모는 Story `<N>`.
 - **`(blocks: <ref>)` 표기**:
@@ -115,8 +115,8 @@ L3 출력 템플릿(표준):
   - 같은 부모 아래 sibling 참조만 허용. 다른 Story의 Subtask 참조는 **E7** 처리 (해당 링크 1건만 skip + 경고).
   - 다중 참조: `(blocks: 1.1, 1.2)` 형식 허용.
 
-`ImportPayload`(L3):
-- `breakdownLevel: "L3"`
+`ImportPayload`(tree):
+- `breakdownShape: "tree"`
 - `epic: { summary, description?, ... }` — 노드 1개
 - `stories[]`/`links[]` — 기존 그대로
 
@@ -124,11 +124,11 @@ L3 출력 템플릿(표준):
 
 ```
 ImportPayload {
-  breakdownLevel: "L1" | "L2" | "L3",
-  single?: { summary, description? },                        // L1만
-  epic?: { summary, description?, priority?, labels? },      // L3만 (L2는 null)
-  stories[]?: [{ index, summary, description?, priority?, labels?, subtasks[] }], // L2/L3
-  links[]?: [{ outwardRef, inwardRef }]                      // L2/L3 (sibling 참조)
+  breakdownShape: "single" | "story" | "tree",
+  single?: { summary, description? },                        // single만
+  epic?: { summary, description?, priority?, labels? },      // tree만 (story는 null)
+  stories[]?: [{ index, summary, description?, priority?, labels?, subtasks[] }], // story/tree
+  links[]?: [{ outwardRef, inwardRef }]                      // story/tree (sibling 참조)
 }
 
 subtasks[] 원소: { index, summary, description?, scope? }
@@ -146,22 +146,22 @@ subtasks[] 원소: { index, summary, description?, scope? }
 
 ## Tree → Issue Mapping
 
-| 레벨 | 트리 노드 | `create` JSON `issuetype` | `parent` 키 | 폴백 |
+| 형태 | 트리 노드 | `create` JSON `issuetype` | `parent` 키 | 폴백 |
 |---|-----------|----------------|------------|------|
-| L1 | 작업 | `Task` | (없음) | 실패 시 그대로 보고 |
-| L2 | Story | `Story` | (없음) | 실패 시 `Task` |
-| L2 | Sub-task | `Subtask` | Story-KEY | 실패 시 `Task` + parent=Story-KEY |
-| L3 | Epic | `Epic` | (없음) | 실패 시 `Task` + label `epic-substitute` |
-| L3 | Story | `Story` | Epic-KEY | 실패 시 `Task` + parent=Epic-KEY |
-| L3 | Sub-task | `Subtask` | Story-KEY | 실패 시 `Task` + parent=Story-KEY |
+| single | 작업 | `Task` | (없음) | 실패 시 그대로 보고 |
+| story | Story | `Story` | (없음) | 실패 시 `Task` |
+| story | Sub-task | `Subtask` | Story-KEY | 실패 시 `Task` + parent=Story-KEY |
+| tree | Epic | `Epic` | (없음) | 실패 시 `Task` + label `epic-substitute` |
+| tree | Story | `Story` | Epic-KEY | 실패 시 `Task` + parent=Epic-KEY |
+| tree | Sub-task | `Subtask` | Story-KEY | 실패 시 `Task` + parent=Story-KEY |
 
 **`epicScope`(`.jira-epic.json`)가 있을 때의 덮어쓰기** — 상위 개념에서 정해진 Epic이 문서 트리보다 우선한다:
 
-| 레벨 | 변경 |
+| 형태 | 변경 |
 |---|---|
-| L1 | 작업의 parent = `epicScope.epicKey` |
-| L2 | Story의 parent = `epicScope.epicKey` (`(없음)` 대신) |
-| L3 | **Epic 행 자체가 사라진다** — Epic을 새로 만들지 않고 `epicScope.epicKey`를 Epic-KEY로 사용. Story/Sub-task 행은 그대로 |
+| single | 작업의 parent = `epicScope.epicKey` |
+| story | Story의 parent = `epicScope.epicKey` (`(없음)` 대신) |
+| tree | **Epic 행 자체가 사라진다** — Epic을 새로 만들지 않고 `epicScope.epicKey`를 Epic-KEY로 사용. Story/Sub-task 행은 그대로 |
 
 Epic 중첩 생성은 하지 않는다.
 

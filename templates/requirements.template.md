@@ -99,20 +99,20 @@
 
 ## Proposed Issue Breakdown
 
-<!-- 분해 레벨 3종 (L1 Single / L2 Story+Subtasks / L3 Epic+Stories+Subtasks).
+<!-- 분해 형태 3종 (single / story / tree).
      입력 규모에 맞는 1개만 채운다. 항상 트리 강제 X.
      서브태스크는 파일군 덩어리에서 도출한다 — 덩어리 1개 = 서브태스크 1개.
      모든 Sub-task는 `범위:` 자식 줄 필수. 채울 수 없으면 서브태스크가 아니다.
-     레벨 정의·도출 순서·경계 규칙은 skills/jira-task-discover/refs/breakdown-level.md 참조. -->
+     형태 정의·도출 순서·경계 규칙은 skills/jira-task-discover/refs/breakdown-shape.md 참조. -->
 
-<!-- L1 Single 예시:
+<!-- single 예시:
 
 - **작업**: <한 줄 요약>
   - 범위: <변경 파일/모듈 한 줄>
   - 검증: <측정 가능한 완료 기준 한 줄>
 -->
 
-<!-- L2 Story+Subtasks 예시:
+<!-- story 예시:
 
 - **Story**: <스토리 요약>
   - Sub-task 1: <서브태스크 요약>
@@ -120,7 +120,7 @@
   - ... (파일군 덩어리 수만큼. 0개도 정답)
 -->
 
-<!-- L3 Epic+Stories+Subtasks 예시:
+<!-- tree 예시:
 
 - **Epic**: <에픽 요약>
   - **Story 1**: <스토리 요약>

@@ -154,17 +154,17 @@ Step 4 합성 산출물(FR / Edge Cases / Out of Scope / Open Questions)을 사�
 
 ### Step 5: Issue Breakdown + Technical Approach Hint Section
 
-**진입 조건:** Step 4.5 confirm을 통과(`proceed`)한 합성 결과 + 확정 분해 레벨을 입력으로 받아 본 단계를 실행한다. Step 4에서 생성한 문서의 **말미 두 섹션**(Proposed Issue Breakdown, Technical Approach Hint)을 채운다. **Jira 이슈를 만들지 않는다 — 문서에만 기록한다.**
+**진입 조건:** Step 4.5 confirm을 통과(`proceed`)한 합성 결과 + 확정 분해 형태을 입력으로 받아 본 단계를 실행한다. Step 4에서 생성한 문서의 **말미 두 섹션**(Proposed Issue Breakdown, Technical Approach Hint)을 채운다. **Jira 이슈를 만들지 않는다 — 문서에만 기록한다.**
 
-**필수**: `skills/jira-task-discover/refs/breakdown-level.md`를 Read하여 3 레벨 정의·신호표·출력 템플릿을 확인한다. 본 SKILL.md에는 정의를 인라인하지 않는다.
+**필수**: `skills/jira-task-discover/refs/breakdown-shape.md`를 Read하여 3 형태 정의·신호표·출력 템플릿을 확인한다. 본 SKILL.md에는 정의를 인라인하지 않는다.
 
-분해 레벨은 3종 (L1 Single / L2 Story+Subtasks / L3 Epic+Stories+Subtasks). LLM이 합성 결과를 보고 1개를 추천하고, 그 추천은 **Step 4.5 synthesis-confirm gate에 함께 노출되어 사용자 검증을 받는다** (별도 confirm gate를 두지 않음 — 수렴 gate 통합).
+분해 형태은 3종 (single / story / tree). LLM이 합성 결과를 보고 1개를 추천하고, 그 추천은 **Step 4.5 synthesis-confirm gate에 함께 노출되어 사용자 검증을 받는다** (별도 confirm gate를 두지 않음 — 수렴 gate 통합).
 
 #### Step 5 절차
 
-1. `breakdown-level.md`의 **서브태스크 도출 순서**(파일군 나열 → 묶기 → 덩어리 1개=서브태스크 1개 → 경계 규칙 검산)를 먼저 수행한다. Step 2 Codebase Context가 이 단계의 입력이다. 그런 다음 Step 4.5에서 확정된 레벨의 출력 템플릿 1개를 골라 `Proposed Issue Breakdown` 섹션을 채운다 — 각 Sub-task의 `범위:` 줄은 필수다.
+1. `breakdown-shape.md`의 **서브태스크 도출 순서**(파일군 나열 → 묶기 → 덩어리 1개=서브태스크 1개 → 경계 규칙 검산)를 먼저 수행한다. Step 2 Codebase Context가 이 단계의 입력이다. 그런 다음 Step 4.5에서 확정된 형태의 출력 템플릿 1개를 골라 `Proposed Issue Breakdown` 섹션을 채운다 — 각 Sub-task의 `범위:` 줄은 필수다.
 2. `Technical Approach Hint` 섹션을 채운다 — Codebase Context · Functional Requirements · Constraints를 입력으로 LLM이 합성. 코드 스니펫 금지. 항목: 핵심 구현 포인트 / 검토할 접근 옵션 / 주의 지점. `--lite`면 3-5줄 요약.
-3. Step 6 Next 안내는 확정 레벨에 따라 권장 명령을 분기 출력한다 (L1: `/jira-task create <힌트>`, L2/L3: `/jira-task create --from-requirements ...`).
+3. Step 6 Next 안내는 확정 형태에 따라 권장 명령을 분기 출력한다 (single: `/jira-task create <힌트>`, story/tree: `/jira-task create --from-requirements ...`).
 
 ### Step 6: Completion Summary
 
@@ -177,13 +177,13 @@ Step 4 합성 산출물(FR / Edge Cases / Out of Scope / Open Questions)을 사�
 - 요구사항 문서 생성: `docs/requirements/<slug>.requirements.md`
 - 모드: default | lite | from | lite+from
 - 코드베이스 컨텍스트: <발췌 파일 N개> (또는 "관련 영역 미발견")
-- 이슈 분해 제안: <L1: "단일 작업 1건" / L2: "스토리 1 + 서브태스크 N" / L3: "에픽 1 + 스토리 N + 서브태스크 M">
+- 이슈 분해 제안: <single: "단일 작업 1건" / story: "스토리 1 + 서브태스크 N" / tree: "에픽 1 + 스토리 N + 서브태스크 M">
 
 **Progress**: **discover ✓** → create → init → start → approach → impl → test → review → merge → pr → done
 
-**Next** (Step 5에서 확정된 분해 레벨에 따라 1줄 출력):
-- L1 Single: `/jira-task create <한 줄 힌트>` — 분석서를 참고로 Jira 작업 1건을 등록합니다 (import 파서가 Single을 아직 못 받음)
-- L2 Story+Subtasks / L3 Epic+Stories+Subtasks: `/jira-task create --from-requirements docs/requirements/<slug>.requirements.md` — 이 분석서로 Jira 이슈를 일괄 등록합니다
+**Next** (Step 5에서 확정된 분해 형태에 따라 1줄 출력):
+- single: `/jira-task create <한 줄 힌트>` — 분석서를 참고로 Jira 작업 1건을 등록합니다 (import 파서가 Single을 아직 못 받음)
+- story / tree: `/jira-task create --from-requirements docs/requirements/<slug>.requirements.md` — 이 분석서로 Jira 이슈를 일괄 등록합니다
 ---
 ```
 

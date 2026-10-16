@@ -1,6 +1,6 @@
 ---
 name: jira-task-start
-description: "Start working on a Jira task — creates a feature branch or worktree and transitions the issue to In Progress. Triggers: jira-task start, start task; 작업 시작, 태스크 시작."
+description: "Start working on a Jira task — creates a feature branch or worktree, confirms the SDLC level (L1/L2/L3), and transitions the issue to In Progress. Triggers: jira-task start, start task; 작업 시작, 태스크 시작."
 user-invocable: false
 argument-hint: "<TASK-ID>"
 allowed-tools:
@@ -8,6 +8,7 @@ allowed-tools:
   - Write
   - Bash
   - Glob
+  - AskUserQuestion
 ---
 
 # jira-task-start: Start Working on a Jira Task
@@ -101,7 +102,9 @@ git rev-parse --verify develop 2>/dev/null  # 1st
 git rev-parse --verify main 2>/dev/null     # 2nd
 git rev-parse --verify master 2>/dev/null   # 3rd
 
-git worktree add -b "feature/<TASK-ID>" "$WORKTREE_BASE/<TASK-ID>" <base-branch>
+# 원격이 있으면 최신 origin/<base>에서 분기한다 (로컬 base에 쌓인 미리뷰 커밋을 끌고 가지 않게)
+git fetch origin <base-branch> 2>/dev/null && START_POINT="origin/<base-branch>" || START_POINT="<base-branch>"
+git worktree add -b "feature/<TASK-ID>" "$WORKTREE_BASE/<TASK-ID>" "$START_POINT"
 ```
 
 **(선택 — MCP 서버를 쓰는 경우에만)** jira-cli는 메인 레포 `.jira-context.json`의 `jira` 블록을 worktree에서도 찾아 읽으므로 CLI만 쓰면 전파가 필요 없다 — 이 경우 이 단계를 건너뛴다. MCP 서버를 등록해 쓰는 환경에서만 메인 레포의 atlassian MCP 설정을 worktree로 전파한다 (worktree는 별도 프로젝트 루트로 인식되어 MCP 설정이 자동 상속되지 않음 — init Step 5.5와 동일). 스크립트 경로 결정은 `Read skills/_shared/script-lookup.md` 후 lookup 블록 실행:
@@ -146,6 +149,10 @@ fi
 <linked issues if any>
 ```
 
+### Step 4.5: 등급 판정·확정
+
+`skills/_shared/sdlc-level.md`를 Read하고 그대로 따른다. labels에 `sdlc-L*`가 이미 있으면 묻지 않는다. 확정 전에는 Step 5로 넘어가지 않는다. 라벨·`## SDLC Level` 코멘트는 여기서 올리고, context 기록은 Step 6의 `--patch`로 한다.
+
 ### Step 5: Post Comment to Jira
 
 ```bash
@@ -164,7 +171,8 @@ SCRIPT_NAME="jira-context-update.py" OUT_VAR="JIRA_CTX_UPDATE_PY"
 # Read skills/_shared/script-lookup.md and execute its lookup block here
 python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> start "<fresh-jira-status>" \
     "<worktree>/.jira-context.json" \
-    "<repoRoot>/.jira-context.json"
+    "<repoRoot>/.jira-context.json" \
+    --patch '{"level":"<L1|L2|L3>","riskSignals":[<번호...>]}'
 ```
 
 - `<fresh-jira-status>`: Step 2 `transition` 출력의 `status` (전이 후 실제 status명 (예: `"In Progress"`, `"진행 중"`). transition 시도값을 그대로 쓰지 말 것.
@@ -176,26 +184,7 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> start "<fresh-jira-status>" \
 
 파일이 없는 경우(fresh 모드)에만 새로 만든 뒤 위 스크립트를 호출한다.
 
-### Step 7: PDCA 권고
-
-Completion Summary 직전에 다음 형식의 권고 블록을 출력한다. 이슈 요약·설명·타입·범위를 바탕으로 LLM이 판단한다 — 별도 휴리스틱 표나 분류기를 사용하지 않는다.
-
-- **판단 대상**: `approach`, `test` 두 단계만. `impl`/`review`/`merge`/`done`은 항상 필수이므로 판단 대상에서 제외.
-- **판단 근거**: 작업 성격(신규 기능 / 리팩토링 / 버그픽스 / 문서·설정 변경), 변경 범위, 리스크.
-- **저장하지 않는다**: `.jira-context.json`이나 다른 곳에 기록하지 않는다. 한 세션 안에서만 의미를 가지며, 통신은 응답 텍스트로 끝낸다.
-- **사용자 오버라이드**: 사용자가 다음 턴에 자연어("test는 넣어줘")로 알려주면 그대로 따른다. 별도 플래그·저장 없음.
-
-출력 형식 예:
-
-```
-🔍 PDCA 권고
-- 필수: approach, impl, review, merge
-- 스킵 가능: test (사유: SKILL.md 텍스트 추가뿐, 동작 변경 없음)
-```
-
-스킵 가능 단계가 없으면 "스킵 가능: 없음"으로 출력. 권고는 본 응답 1회만 노출하고, 후속 단계가 자동으로 다시 출력하지 않는다.
-
-### Step 8: Completion Summary
+### Step 7: Completion Summary
 
 아래 형식으로 완료 요약 출력:
 
@@ -207,10 +196,13 @@ Completion Summary 직전에 다음 형식의 권고 블록을 출력한다. 이
 - 담당자: <본인 표시명> (자동 지정)
 - 브랜치: feature/<TASK-ID>
 - Worktree: <path>
+- 등급: <L1|L2|L3> (위험 신호: <번호 또는 없음>) — 라벨 `sdlc-<Lx>`
 - Jira 코멘트 게시됨
 
-**Progress**: init → **start ✓** → approach → impl → test → review → merge → pr → done
+**Progress**: init → **start ✓** → approach → test-write → impl → verify → pr → done
 
-**Next**: `/jira-task approach <TASK-ID>` — level-aware approach 문서를 작성합니다 (Step 7의 권고에 따라 다른 단계로 바로 갈 수도 있음)
+**Next**:
+- L1: `/jira-task test-write <TASK-ID>` — 동작이 바뀌지 않는 변경(오타·로그 한 줄 등)이면 사유를 남기고 `/jira-task impl <TASK-ID>`
+- L2·L3: `/jira-task approach <TASK-ID>` — spec·plan(L3는 intent부터)을 쓰고 draft PR에서 승인을 기다립니다
 ---
 ```
