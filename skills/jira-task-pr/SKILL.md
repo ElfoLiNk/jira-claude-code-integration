@@ -45,6 +45,8 @@ python3 "<scripts>/sdlc-gate.py" pr-state <TASK-ID>   # {"state": draft|ready|me
 | merged | `/jira-task done <TASK-ID>` 안내 |
 | closed | 머지 없이 닫힘 — 사용자에게 알리고 멈춘다 |
 
+`mergeable`이 `CONFLICTING`이면 state와 별개로 알린다: "base와 충돌해 머지할 수 없습니다 — `skills/_shared/base-conflict.md` 절차로 해결 후 재검증이 필요합니다."
+
 ### Step 3: 리뷰 요청 반영 (state = ready)
 
 `completedSteps`에 `pr`이 이미 있으면 건너뛴다.

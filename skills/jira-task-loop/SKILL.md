@@ -69,7 +69,10 @@ cd "<worktreePath>" && python3 "<sdlc-gate.py>" pr-state <KEY>
 | merged | `Skill({ skill: "jira-integration:jira-task-done", args: "<KEY>" })` — 머지 커밋 코멘트, 완료 전이, aggregate에서 제거 |
 | ready + `pr` 미기록 | `Skill({ skill: "jira-integration:jira-task-pr", args: "<KEY>" })` — Jira 검토 중 전이 |
 | draft·ready(기록됨) | 변화 없음 |
+| draft·ready + `mergeable: "CONFLICTING"` (`stackedOn` 없음) | 격리 `base-conflict` — 앞서 머지된 PR과 충돌. 사람이 해결을 지시하면 `skills/_shared/base-conflict.md` (rebase → 역할별 해결 → 재검증). 위 행의 처리(pr 기록 등)는 그대로 한다 |
 | closed | 격리 `pr-closed` |
+
+`mergeable`이 `UNKNOWN`이면 GitHub가 아직 계산 중이다 — 이번 run에서는 판단하지 않는다.
 
 이어서 **stacked 재정렬**: context `stackedOn`이 있는 태스크마다 앞 태스크 PR(`stackedOn.key`)의 `pr-state`가 `merged`면 (rebase merge는 앞 커밋 SHA를 바꾸므로 분기 시점에 기록해 둔 `stackedOn.sha`가 기준이다):
 
@@ -130,7 +133,7 @@ Step 7의 실행 절차로 auto를 부른다. 기대 결과는 `completed`(리�
 **격리**: EnterWorktree 상태면 먼저 `ExitWorktree({ action: "keep" })`. aggregate 해당 항목에 Edit:
 ```json
 "deferred": true,
-"deferredKind": "<scope-shortfall | gate-exhausted | stage-failed | test-dispute | gate-error | restack-conflict | predecessor-deferred | pr-closed>",
+"deferredKind": "<scope-shortfall | gate-exhausted | stage-failed | test-dispute | gate-error | restack-conflict | base-conflict | predecessor-deferred | pr-closed>",
 "deferredReason": "<한 줄 — auto/git/gh 출력 기반 실제 사유>"
 ```
 worktree 작업 트리와 Jira는 건드리지 않는다. 같은 run 안에서 재시도하지 않는다. 출력: `⛔ <KEY> 격리 [<kind>]: <사유> — 다음 태스크로 계속합니다.`
@@ -194,6 +197,7 @@ sync 결과: 완료 <KEY...> / 검토 중 <KEY...> / 재정렬 <KEY...>
 | test-dispute | 테스트를 고칠지 결정 → `/jira-task test-write <KEY>` 또는 `/jira-task impl <KEY>` |
 | gate-error | `sdlc-gate.py check` 오류 확인(AGENTS.md 승인자 표, gh 로그인) |
 | restack-conflict | worktree에서 rebase 충돌 해결(또는 미커밋 정리) 후 loop 재실행 |
+| base-conflict | 앞서 머지된 PR과 충돌 — "충돌 해결해줘"로 `skills/_shared/base-conflict.md` 절차(rebase → 역할별 해결 → 재검증) |
 | predecessor-deferred | 앞 태스크 격리 사유부터 해결 |
 | pr-closed | PR이 머지 없이 닫힘 — 이슈를 정리하거나 새 PR |
 

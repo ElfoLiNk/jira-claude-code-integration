@@ -29,7 +29,7 @@ Jira 호출은 `python3 "<scripts>/jira-cli.py" …` (`skills/_shared/jira-cli.m
 python3 "<scripts>/sdlc-gate.py" pr-state <TASK-ID>
 ```
 
-- `state != "merged"`면 **거부**하고 멈춘다: `PR이 아직 머지되지 않았습니다 (<state>). 코드 오너가 머지한 뒤 다시 실행하세요.` draft면 `/jira-task pr <TASK-ID>`로 상태를 안내한다.
+- `state != "merged"`면 **거부**하고 멈춘다: `PR이 아직 머지되지 않았습니다 (<state>). 코드 오너가 머지한 뒤 다시 실행하세요.` draft면 `/jira-task pr <TASK-ID>`로 상태를 안내하고, `mergeable`이 `CONFLICTING`이면 `skills/_shared/base-conflict.md` 절차를 안내한다.
 - `merged`면 `mergeCommit`(SHA)과 `url`을 이후 단계에 쓴다.
 - context가 없으면(worktree를 이미 지움) 메인 레포에서 실행해도 된다 — `pr-state`는 브랜치 이름으로 PR을 찾는다.
 

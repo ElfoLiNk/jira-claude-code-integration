@@ -122,7 +122,7 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 | 패스 | 대상 | 하는 일 |
 |---|---|---|
 | `prep` | 등급 없는 태스크 | 등급을 표로 제안하고 한 번에 확정 |
-| `sync` | PR이 있는 태스크 | 머지됨 → done, 리뷰 요청됨 → 검토 중, stacked 브랜치 재정렬 |
+| `sync` | PR이 있는 태스크 | 머지됨 → done, 리뷰 요청됨 → 검토 중, stacked 브랜치 재정렬, base와 충돌하는 PR 격리 |
 | `plan` | L2·L3 승인 전 | 산출물 작성 → 승인 대기 |
 | `build` | L1 + 승인된 L2·L3 | test-write → impl → verify → 리뷰 요청 준비됨 |
 
@@ -270,6 +270,7 @@ A가 `discover`·`create`로 요구사항과 티켓을 만들고 B가 `start`/`a
 | `test-dispute` | 구현 세션이 테스트가 틀렸다고 판단 | 테스트를 고칠지 결정 → `test-write` 또는 `impl` |
 | `gate-error` | 승인 확인 스크립트 오류 | AGENTS.md 승인자 표, `gh` 로그인 확인 |
 | `restack-conflict` | stacked 브랜치 재정렬 충돌 | worktree에서 rebase 충돌 해결 후 `loop` 재실행 |
+| `base-conflict` | 먼저 머지된 PR과 충돌해 머지 불가 | "충돌 해결해줘" — base 위로 rebase, 테스트 충돌은 테스트 작성 역할·코드 충돌은 구현 역할로 풀고 재검증 |
 | `predecessor-deferred` | 앞 태스크가 격리됨 | 앞 태스크부터 해결 |
 | `pr-closed` | PR이 머지 없이 닫힘 | 이슈 정리 또는 새 PR |
 
