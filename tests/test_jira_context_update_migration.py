@@ -156,6 +156,18 @@ class StripAggregatePollutionTest(unittest.TestCase):
         with open(wt, encoding="utf-8") as f:
             self.assertIn("start", json.load(f)["completedSteps"])
 
+    def test_remove_step_from_both_files(self):
+        wt = self._write({"taskId": "T-1", "completedSteps": ["impl", "verify", "pr"], "verifyAt": "x"})
+        agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["impl", "verify", "pr"], "verifyAt": "x"}]})
+        rc = module.main(["x", "T-1", "-", "-", str(wt), str(agg), "--remove-step", "verify"])
+        self.assertEqual(rc, 0)
+        for p in (wt, agg):
+            with open(p, encoding="utf-8") as f:
+                d = json.load(f)
+            t = d["tasks"][0] if "tasks" in d else d
+            self.assertEqual(t["completedSteps"], ["impl", "pr"])
+            self.assertNotIn("verifyAt", t)
+
     def test_cache_issue_sets_fetched_at_worktree_only(self):
         wt = self._write({"taskId": "T-1", "completedSteps": ["init"]})
         agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["init"]}]})

@@ -41,7 +41,7 @@ git diff --name-only <base>..HEAD
 - 입력: L2·L3는 `work/<KEY>/spec.md`의 `AC-xx`, L1은 호출자가 넘긴 이슈 AC(또는 PR 본문 "변경 내용"의 바뀌는 동작).
 - AC마다 근거를 찾는다: 그 AC를 이름에 단 테스트(`git log --oneline <base>..HEAD -- <테스트 파일>`로 test 커밋 확인)와 3단계의 실행 결과, diff의 해당 구현 라인.
 - 판정: 충족 / 미충족 / 미확인. 근거는 도구가 남긴 것(테스트 이름과 결과, 명령 출력, `파일:라인`)으로 적는다.
-- test 커밋 이후 테스트 파일이 바뀌었으면(`git diff <test 커밋> HEAD -- <테스트 파일>`) Critical로 보고한다 — 구현 세션은 테스트를 고칠 수 없다.
+- test 커밋 이후 테스트 파일이 바뀌었으면(`git diff <test 커밋> HEAD -- <테스트 파일>`) Critical로 보고한다 — 구현 세션은 테스트를 고칠 수 없다. test 커밋은 `git log --format=%h --grep='^test(<KEY>)' <base>..HEAD`의 마지막(가장 오래된) 줄로 찾는다. rebase·재정렬로 SHA가 바뀌므로 호출자가 넘긴 SHA와 다르면 이쪽을 쓴다. base 충돌 해결로 테스트 파일이 바뀐 경우(context `testExpectationChanges`에 근거가 있거나 `## Rebased onto` 기록이 있음)는 그 변경이 두 쪽 테스트를 합친 것인지 확인하고, 기대값이 근거 없이 바뀌었을 때만 Critical로 본다.
 
 ### 3. 검사 실행
 - 명령: 프로젝트 `AGENTS.md`의 "## 검사" 절 명령. 없으면 선언된 테스트 명령(`package.json` scripts의 test, `pytest`, `./gradlew test` 등)과 계획에 E2E가 있으면 Playwright. 자동 설치되는 도구(`npx <미선언 도구>`)는 실행하지 않는다.

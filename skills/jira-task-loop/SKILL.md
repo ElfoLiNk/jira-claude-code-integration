@@ -84,6 +84,8 @@ gh pr edit feature/<KEY> --base <base>
 python3 "<jira-context-update.py>" <KEY> - - "<worktree ctx>" "<aggregate>" --patch '{"stackedOn":null}'
 ```
 
+재정렬로 커밋 SHA가 바뀌므로 context `testWrite.commit`도 `git log --format=%h --grep='^test(<KEY>)' origin/<base>..feature/<KEY> | tail -1`로 다시 기록한다.
+
 worktree가 dirty이거나 rebase가 충돌하면 `git -C "<worktreePath>" rebase --abort 2>/dev/null || true` 후 격리 `restack-conflict`. 앞 PR이 아직 열려 있으면 그대로 둔다.
 
 ## Step 4: plan — 산출물과 승인 요청

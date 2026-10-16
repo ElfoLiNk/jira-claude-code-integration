@@ -18,6 +18,9 @@ done 단계는 aggregate에서 해당 태스크 항목을 **제거**한다 (생�
 --cache-issue <file|-> (v0.70.0): `jira-cli.py get` 출력(JSON)을 worktree-local `cachedIssue`로 기록하고 fetchedAt을
     현재 UTC로 채운다. step "-"와 함께 쓰면 캐시만 갱신한다. aggregate에는 기록하지 않는다.
 
+--remove-step <step> (v0.70.0, 반복 가능): worktree-local과 aggregate 둘 다에서 completedSteps의 그 단계와 <step>At을 지운다.
+    step "-"와 함께 쓴다 (예: base 충돌을 풀고 재검증하기 전에 verify를 지움).
+
 ctx-file이 없으면 stderr에 error를 내고 exit 1 (v0.70.0 — 잘못된 경로로 aggregate 갱신이 조용히 빠지는 것을 막는다).
     용도: impl/fix 단계가 self-check 기록과 completedSteps 갱신을 Bash 1회로 끝내기.
     step에 "-"를 주면 completedSteps 추가·타임스탬프 기록 없이 patch만 적용한다 (fix loop의 test/review 제거용).
@@ -134,8 +137,18 @@ def _apply_patch(target: dict, patch: dict, ts: str) -> None:
         target[k] = v
 
 
+def _remove_steps(target: dict, steps: list[str]) -> bool:
+    cur = target.get("completedSteps") or []
+    if not any(st in cur for st in steps):
+        return False
+    target["completedSteps"] = [st for st in cur if st not in steps]
+    for st in steps:
+        target.pop(f"{st}At", None)
+    return True
+
+
 def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
-                   patch: dict | None = None) -> str:
+                   patch: dict | None = None, remove_steps: list[str] | None = None) -> str:
     if not os.path.isfile(ctx_file):
         return f"missing: {ctx_file}"
     with open(ctx_file, "r", encoding="utf-8") as f:
@@ -156,10 +169,12 @@ def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
             updated = len(ctx["tasks"]) < before
         else:
             agg_patch = {k: v for k, v in (patch or {}).items() if k in _AGGREGATE_PATCH_KEYS}
-            if step == "-" and not agg_patch and not removed:
+            if step == "-" and not agg_patch and not remove_steps and not removed:
                 return f"aggregate unchanged (worktree-only patch): {ctx_file}"
             for t in ctx["tasks"]:
-                if t.get("taskId") == task_id and (step != "-" or agg_patch):
+                if t.get("taskId") == task_id and (step != "-" or agg_patch or remove_steps):
+                    if remove_steps:
+                        _remove_steps(t, remove_steps)
                     if step != "-":
                         _apply_step(t, step, status, ts)
                     _apply_patch(t, agg_patch, ts)
@@ -173,6 +188,8 @@ def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
         if updated:
             return f"aggregate updated ({task_id}): {ctx_file}"
         return f"no {task_id} in aggregate, skipped: {ctx_file}"
+    if remove_steps:
+        _remove_steps(ctx, remove_steps)
     if step != "-":
         _apply_step(ctx, step, status, ts)
     _apply_patch(ctx, patch or {}, ts)
@@ -258,6 +275,14 @@ def main(argv: list[str]) -> int:
             print(f"error: --patch JSON 파싱 실패: {e}", file=sys.stderr)
             return 2
         argv = argv[:i] + argv[i + 2:]
+    remove_steps = []
+    while "--remove-step" in argv:
+        i = argv.index("--remove-step")
+        if i + 1 >= len(argv) or argv[i + 1] not in VALID_STEPS:
+            print(f"error: --remove-step requires a valid step: {sorted(VALID_STEPS)}", file=sys.stderr)
+            return 2
+        remove_steps.append(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
     if "--cache-issue" in argv:
         i = argv.index("--cache-issue")
         if i + 1 >= len(argv):
@@ -276,7 +301,7 @@ def main(argv: list[str]) -> int:
         print(__doc__, file=sys.stderr)
         return 2
     task_id, step, status = argv[1], argv[2], argv[3]
-    if step == "-" and not patch:
+    if step == "-" and not patch and not remove_steps:
         print("error: step '-' (record-only)는 --patch와 함께만 쓸 수 있다", file=sys.stderr)
         return 2
     if step != "-" and step not in VALID_STEPS:
@@ -288,7 +313,7 @@ def main(argv: list[str]) -> int:
     ts = _now_utc_iso()
     rc = 0
     for ctx_file in argv[4:]:
-        out = update_context(ctx_file, task_id, step, status, ts, patch)
+        out = update_context(ctx_file, task_id, step, status, ts, patch, remove_steps)
         if out.startswith("missing: "):
             # 경로를 잘못 넘긴 것을 조용히 넘기지 않는다 — 없는 파일은 인자에서 빼고 호출한다
             print(f"error: {out}", file=sys.stderr)

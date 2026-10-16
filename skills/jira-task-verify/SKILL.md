@@ -35,7 +35,7 @@ allowed-tools:
 
 - 등급: context `level`. base: context `stackedOn.branch` 또는 `baseBranch`.
 - 수용 조건: L2·L3는 `work/<TASK-ID>/spec.md`. L1은 `cachedIssue`의 AC(없으면 PR 본문 "변경 내용"의 바뀌는 동작).
-- test 커밋: context `testWrite.commit`, 생략 사유 `testWriteSkipped`.
+- test 커밋: context `testWrite.commit`(rebase 뒤라면 검증 세션이 커밋 메시지로 다시 찾는다), 생략 사유 `testWriteSkipped`.
 
 ### Step 2: 검증 (Mode A / Mode B)
 
@@ -45,6 +45,7 @@ allowed-tools:
 
 - **L2·L3**: 플러그인 `templates/sdlc/verification.md`를 Read해 `work/<TASK-ID>/evidence/verification.md`를 쓴다(표준 사본 표시·안내 주석은 지운다). "수용 조건별 판정" 표, "실행한 검사"(명령과 결과 요약), "독립 검증"(양식대로 목록 한 줄씩: `- [Critical|Warning] <파일:라인> — <요약>. 처리: <작업 담당자 판단 대기 | 수정함 | 후속 이슈>`)에 결과를 옮긴다. `verify-metrics`·`verify-timings` 블록은 파일 맨 위에 그대로 둔다. 화면 캡처 등은 같은 `evidence/`에 둔다.
   ```bash
+  # 재검증(fix 루프, base 충돌 해결 뒤)이면 기존 verification.md를 새 결과로 덮어쓰고 새 커밋으로 남긴다
   git add work/<TASK-ID>/evidence/
   git commit -m "docs(<TASK-ID>): verification"
   git push
