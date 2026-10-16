@@ -107,7 +107,7 @@ diff와 검증 결과를 직접 확인한 뒤 `gh pr ready <번호>`로 리뷰�
 
 **`scope_shortfall`**:
 ```
-❌ Auto 모드 중단 (scope shortfall): 미충족 수용 조건 <acUnmet>/<acTotal>, Critical <criticalCount>건
+❌ Auto 모드 중단 (scope shortfall): 미충족 수용 조건 <acUnmet>/<acTotal>, Critical <criticalCount>건 (기준: 미충족 2건 이상이면서 30% 초과, 또는 Critical 3건 이상)
 <unmet 목록>
 단일 수정으로 메우기 어려운 누락으로 보여 자동 수정을 건너뜁니다. 선택지:
 1. 계획을 고친다 — plan.md·spec.md 수정 후 재승인 (수용 조건 변경은 spec 재승인, SD-COM-GAT-006)

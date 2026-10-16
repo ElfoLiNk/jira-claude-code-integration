@@ -52,7 +52,7 @@ allowed-tools:
   ```
 - **L1**: 파일을 만들지 않는다. 결과는 PR 본문 "검증"과 context `verifyResult`에 남긴다.
 
-### Step 4: review-log 기록 (best-effort)
+### Step 4: review-log 기록 (생략 금지, 실패만 비차단)
 
 ```bash
 date +%s   # VERIFY_END

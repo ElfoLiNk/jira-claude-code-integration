@@ -111,7 +111,7 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 
 - **검증 판정**: 검증 세션은 "증거를 열어보기 전엔 전부 미충족"(Default-FAIL)으로 판정합니다. AC별 판정 수와 Critical 건수가 구조화된 값으로 나오고, 게이트는 이 값을 코드로 판정합니다. 통과 = 미충족 0, 검사 통과, Critical 0.
 - **fix 루프**: 미통과면 구현 역할의 수정 agent가 lint·typecheck·이 작업의 테스트만 도는 싼 센서 루프(최대 5회)로 수렴시킨 뒤 delta 재검증을 1회 돌립니다. 바깥 루프 상한은 2회. 수정 agent도 테스트는 못 고칩니다 — 테스트가 틀렸다고 판단하면 멈추고 사람에게 넘깁니다(`test_dispute`).
-- **중단 조건**: 미충족 AC가 30%를 넘거나 Critical ≥ 3이면 "스코프 누락"으로 보고 fix 루프에 들어가지 않습니다.
+- **중단 조건**: 미충족 AC가 2건 이상이면서 30%를 넘거나 Critical ≥ 3이면 "스코프 누락"으로 보고 fix 루프에 들어가지 않습니다.
 
 제어 흐름 전체는 프롬프트가 아니라 **Workflow 스크립트**(`scripts/auto.workflow.js`)가 결정론적으로 실행합니다.
 
@@ -256,7 +256,7 @@ A가 `discover`·`create`로 요구사항과 티켓을 만들고 B가 `start`/`a
 |---|---|
 | 구현 시작 (L2·L3) | `sdlc-gate.py check <KEY> plan` 통과 — 승인자 계정, SHA 이력, 이후 산출물 불변 |
 | 리뷰 요청 준비됨 | 미충족 AC 0, 검사 통과(또는 검사 없음), Critical 0. 미확인 AC는 사유와 함께 허용 |
-| fix 루프 진입 | 미충족 AC ≤ 30% 이고 Critical < 3 (아니면 스코프 누락으로 즉시 중단) |
+| fix 루프 진입 | 미충족 AC가 1건이거나 30% 이하, 그리고 Critical < 3 (아니면 스코프 누락으로 즉시 중단) |
 | fix 루프 상한 | 바깥 2회, 안쪽 센서 루프 5회 |
 | done | PR이 GitHub에서 MERGED |
 

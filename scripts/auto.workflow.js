@@ -271,6 +271,7 @@ function verifyPrompt(delta) {
     `verify-metrics 블록 값을 metrics로 반환하라.`,
     `unmet에는 미충족 AC, Critical finding, 실패한 검사를 한 줄씩 넣어라 (예: "AC-02 PAID 주문 취소가 관리자 외에도 허용됨 — src/order/cancel.ts:42"). 통과면 빈 배열.`,
     `prUrl에 PR URL을 넣어라.`,
+    `Skill Step 4(review-log 기록)를 빠뜨리지 마라 — 실패해도 계속하지만 생략하지는 않는다.`,
     ``,
     returnFooter,
   ].join('\n')
@@ -326,9 +327,10 @@ while (!done.has('verify')) {
   }
 
   // Scope Shortfall Triage — 근거: skills/jira-task-auto/refs/review-wrapper.md
-  // 미충족 AC가 30% 초과 또는 Critical ≥ 3 → 단일 fix agent로 못 메우는 scope 누락 → 사용자 위임.
+  // 미충족 AC 2건 이상이면서 30% 초과, 또는 Critical ≥ 3 → 단일 fix agent로 못 메우는 scope 누락 → 사용자 위임.
+  // (비율만 보면 AC가 1~2개인 작업은 하나만 빠져도 50~100%라 fix loop에 들어가지 못한다 — 드라이런 DEMO-4)
   const unmetRatio = m.acTotal > 0 ? m.acUnmet / m.acTotal : 0
-  if (unmetRatio > 0.3 || m.criticalCount >= 3) {
+  if ((m.acUnmet >= 2 && unmetRatio > 0.3) || m.criticalCount >= 3) {
     return { status: 'scope_shortfall', metrics: m, unmet: g.r.unmet, fixAttempts, innerLoopIterations, ...base() }
   }
 

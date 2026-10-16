@@ -10,7 +10,7 @@ verify wrapper를 `jira-integration:jira-reviewer`로 두면 inner verifier와 2
 
 미충족 수용 조건이 많거나 Critical이 많으면 scope 자체가 빠진 상태다. fix sub-agent 한 번으로 부족분을 메우기 어렵고, fix loop이 같은 이유로 실패하며 시간만 쓴다. 이런 경우 사용자가 계획 수정·보완·분할 중에서 정해야 한다.
 
-- 미충족 AC 비율 > 30% **또는** Critical ≥ 3 → fix loop 진입 금지, 즉시 중단.
+- 미충족 AC 2건 이상이면서 비율 > 30% **또는** Critical ≥ 3 → fix loop 진입 금지, 즉시 중단. 비율만 쓰면 AC가 1~2개인 작업은 하나만 빠져도 fix loop에 못 들어간다.
 - 그 외 → 최대 2회 자동 수정 루프.
 
 분기 판정은 `scripts/auto.workflow.js`가 JS로 한다. 신호는 verify sub-agent가 schema 강제 StructuredOutput으로 반환하는 `metrics`에서 읽으므로 파싱 실패 경로가 없다. `verification.md` 맨 위 `<!-- verify-metrics -->` 블록은 사람·대시보드용 기록이다.
