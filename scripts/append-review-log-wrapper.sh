@@ -16,11 +16,12 @@
 set +e
 
 TASK_ID="${1:?TASK-ID required}"
-MAIN_ROOT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/.." 2>/dev/null && pwd)"
+MAIN_ROOT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/.." 2>/dev/null && (pwd -W 2>/dev/null || pwd))"
 LOG_DIR="${2:-${MAIN_ROOT:-.}/docs/review-log}"
 
 # 스크립트 경로: 자기 자신과 같은 디렉토리의 append-review-log.py
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Windows Git Bash에서는 pwd -W(C:/...)로 — /c/... 경로는 경로 변환이 꺼진 셸(MSYS_NO_PATHCONV)에서 Windows Python이 열지 못한다
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && (pwd -W 2>/dev/null || pwd))"
 
 # reviewerVersion은 플러그인 쪽 verify SKILL.md 기준 (사용자 레포에는 이 파일이 없다)
 REVIEW_SKILL="$SCRIPT_DIR/../skills/jira-task-verify/SKILL.md"
@@ -33,7 +34,9 @@ APPEND_PY="$SCRIPT_DIR/append-review-log.py"
 TMPFILE=$(mktemp /tmp/review_subagent_XXXXXX.json)
 printf '%s' "$SUBAGENT_RESULT_JSON" > "$TMPFILE"
 
-python3 "$APPEND_PY" "$TASK_ID" "$REVIEWER_VERSION" "$TMPFILE" "$LOG_DIR"
+# Windows Python에는 C:/... 경로로 넘긴다 (cygpath가 없는 POSIX에서는 그대로)
+TMPFILE_ARG=$(cygpath -m "$TMPFILE" 2>/dev/null || echo "$TMPFILE")
+python3 "$APPEND_PY" "$TASK_ID" "$REVIEWER_VERSION" "$TMPFILE_ARG" "$LOG_DIR"
 APPEND_EXIT=$?
 rm -f "$TMPFILE" 2>/dev/null
 [ $APPEND_EXIT -ne 0 ] && echo "⚠️ review-log append failed: Python 종료코드 $APPEND_EXIT"
