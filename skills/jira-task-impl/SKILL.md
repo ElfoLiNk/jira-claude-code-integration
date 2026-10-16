@@ -1,6 +1,6 @@
 ---
 name: jira-task-impl
-description: "Implement a Jira task based on the approach document and post progress to Jira. Triggers: jira-task impl, implement task; 구현 시작, 코딩 시작."
+description: "Implementer session: make the committed tests pass following the approved plan, record plan deviations, move lasting knowledge to shared docs, and update the draft PR. Triggers: jira-task impl, implement task; 구현 시작, 코딩 시작."
 user-invocable: false
 argument-hint: "<TASK-ID>"
 allowed-tools:
@@ -12,126 +12,105 @@ allowed-tools:
   - Grep
 ---
 
-# jira-task-impl: Implement a Jira Task
+# jira-task-impl: 구현
 
 **Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
 
-## Prerequisites
-- Approach document should exist at `docs/approach/<TASK-ID>.approach.md` (warn if missing)
-- Feature branch `feature/<TASK-ID>` should already exist (suggest `/jira-task start` if not)
+## Overview
+
+구현 세션(역할 `implementer`)이 test-write가 커밋한 테스트를 통과시키는 운영 코드를 쓴다. 테스트 파일은 고칠 수 없다(`guard-test-files.js`, TA-COM-AGT-005).
 
 ## Workflow
 
-### Step 1: Load Context
+### Step 0: 진입 조건과 역할 표시
 
-1. Read `.jira-context.json` for active task info
-2. **Cache-first**: `.jira-context.json`의 `cachedIssue`를 먼저 확인 (CLAUDE.md "Issue Cache" 참고; miss면 `python3 "<scripts>/jira-cli.py" get <TASK-ID>`). hit이면 호출 생략, miss면 조회 후 cache 갱신 (구현은 approach 문서가 1차 소스이므로 이슈 본문은 최소만).
-3. Read `docs/approach/<TASK-ID>.approach.md` if it exists
-4. **Level 판정**: `.jira-context.json.breakdownLevel` → 없으면 `cachedIssue.issuetype` 폴백 (approach Step 0 동일 규칙: Subtask/Task/Bug→L1, Story→L2, Epic→L3, 그 외→L1). 판정 결과를 이후 단계에서 사용.
-
-### Step 2: Implement Based on Approach Document
-
-Step 1에서 판정한 레벨에 따라 분기:
-
-#### L1 (Subtask/Task/Bug 등 단일 변경)
-
-approach 문서의 5줄 요약을 입력으로 사용. 추가 설계 문서 없이 직접 구현. 산출물 최소화 — Jira 코멘트는 인라인 요약으로 대체 가능, 별도 문서 생성 불필요.
-
-**L1 탐색 상한**: 읽는 파일은 approach의 "변경 영역"에 명시된 대상 파일 + 정본(요구사항이 가리키는 소스) 1개까지. 유사 문서 스타일 참조, `find`/`grep -r`로 관련 테스트·문서 찾기, 버전·메타 확인용 `cat`은 하지 않는다 — 호출 1회 ≈ 10초이고 L1은 탐색으로 얻을 정보가 없다.
-
-#### L2 (Story — 현행)
-
-`docs/approach/<TASK-ID>.approach.md`의 Implementation Plan 순서를 따름.
-
-#### L3 (Epic)
-
-child Story가 구현 책임을 가지므로 본 단계의 입력으로 쓰지 않는다. L3 Epic에서 이 스킬이 호출되면 "child Story 단위로 실행할 것"을 안내하고 조기 종료.
-
----
-
-구현 원칙:
-1. 위 레벨별 분기 순서를 따름
-2. 기존 코드 컨벤션과 패턴을 준수
-3. Approach 문서의 Risks/Key Decisions 반영
-4. 각 단계 완료 시 **타입체크/컴파일 등 syntactic 검증만** 수행 (테스트 실행 금지)
-
-Approach 문서가 없으면, Jira 이슈 설명과 Acceptance Criteria 기반으로 구현.
-
-**테스트 작업 금지 (강제):**
-- 본 단계에서 **테스트 코드 작성 금지** — unit/integration/E2E 모두 해당
-- 테스트 실행 금지 (`npm test`, `pytest`, `python -m unittest`, `node --test`, `playwright test` 등 전부). 이슈의 완료 조건에 "테스트 통과"가 있어도 **여기서 확인하지 않는다** — 그 확인은 test 단계의 것이고, impl에서 돌리면 같은 스위트를 두 번 돌리는 비용이다
-- 테스트 파일(`*.test.*`, `*.spec.*`, `__tests__/`, `tests/` 하위 등) 신규 생성/수정 금지
-- 테스트 코드 작성과 실행은 모두 `/jira-task test` 단계의 책임이다
-- 단, 구현 대상 파일 자체가 우연히 테스트 코드인 경우(예: 테스트 유틸리티 자체를 구현하는 task)는 approach 문서 Implementation Plan에 명시된 한에서만 허용
-
-### Step 2.5: Self-Check (종료 직전, 필수)
-
-구현을 마쳤다고 판단한 시점에 1회 수행한다. 목적은 review 1회차 통과율 향상 — review를 대체하지 않는다.
-
-1. **Plan 대조**: approach 문서의 Implementation Plan 항목(L1은 5줄 요약)을 실제 변경과 하나씩 대조한다. 미구현 항목은 지금 마저 구현하고, 의도적으로 제외한 항목은 사유를 Step 3 코멘트와 완료 요약에 명시한다.
-2. **Lint 배치 1회**: 도구 판정은 `bash <scripts>/detect-lint.sh` **1회 호출**로 끝낸다 (출력: `LINT <name> <cmd>` / `FORMAT <name> <cmd>` / `NONE` — 판정 규칙은 review와 동일하게 스크립트에 박혀 있다. `package.json`·`node_modules`를 직접 cat/ls/grep 하지 마라). 출력된 명령에 변경 파일 전체를 인자로 **한 번에** 실행. 오류는 즉시 수정 후 1회만 재실행. `NONE`이면 스킵하고 사유를 기록.
-   - **lint는 이 시점 단 1회다.** 구현 중에는 돌리지 않는다 (구현 중 검증은 Step 2의 타입체크/컴파일). review 단계도 이 기록을 인용하고 재실행하지 않는다.
-3. **결과 기록**: Step 4의 context 갱신 호출에 `--patch`로 **함께** 넘긴다 (별도 Edit·`date` 호출 금지 — `ranAt`은 스크립트가 채우고, worktree-local 파일에만 적용되며 aggregate에는 들어가지 않는다):
-
-   ```json
-   "implSelfCheck": {
-     "planMatched": "<구현 항목 수>/<전체 항목 수>",
-     "lint": { "tool": "<도구명 | none>", "files": <N>, "errors": <N>, "warnings": <N> }
-   }
+1. context `completedSteps`에 `test-write`가 없으면 멈추고 `/jira-task test-write <TASK-ID>`를 안내한다.
+2. L2·L3는 context `planApproval`이 있어야 한다. 없으면 멈춘다(승인 확인은 test-write가 한다).
+3. 역할 표시 (`JIRA_CTX_UPDATE_PY`는 prompt에 경로가 없을 때만 `skills/_shared/script-lookup.md`로 찾는다):
+   ```bash
+   python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> - - "<worktree>/.jira-context.json" --patch '{"activeRole":"implementer"}'
    ```
 
-### Step 3: Post Progress to Jira
+### Step 1: 입력
 
-구현 완료 후 `python3 "<scripts>/jira-cli.py" comment <TASK-ID> @<scratchpad md 파일>` (`skills/_shared/jira-cli.md`) — 본문:
+- **L2·L3**: `work/<TASK-ID>/plan.md`의 작업 순서·바뀌는 파일·위험, `spec.md`의 수용 조건. 이슈 본문은 `cachedIssue`로 충분하다(없을 때만 `jira-cli.py get`).
+- **L1**: 이슈 description·AC. 읽는 파일은 바꿀 대상과 그 정본 1개까지로 한다 — 유사 파일 탐색·메타 확인은 하지 않는다.
+- context `testWrite.tests`(test-write가 쓴 테스트 파일)와 `testWriteSkipped`.
 
-```
-## Implementation Complete
+### Step 2: 구현
 
-**브랜치**: feature/<TASK-ID>
+- 작업 순서를 따른다. 기존 코드 컨벤션과 패턴을 따른다.
+- 진행 중 확인은 타입체크·컴파일과 **이 작업의 테스트만** 실행한다. 전체 스위트는 verify가 돈다.
+- 요구사항을 일반적으로 구현한다. 특정 테스트 값만 통과하도록 분기하거나 결과를 하드코딩하지 않는다.
+- **금지**:
+  - 테스트 파일 수정·삭제·skip (hook이 막는다). 테스트가 틀렸거나 과제가 불가능하다고 판단되면 멈추고, 어느 테스트가 왜 틀렸는지 보고한다 — test-write로 되돌릴지는 사용자가 정한다.
+  - 억제 주석(`eslint-disable`, `@SuppressWarnings`, `# noqa`, `# type: ignore`, `NOSONAR` 등)과 분석 제외 설정 추가(CQ-COM-AGT-001). 꼭 필요하면 멈추고 사유를 보고한다.
+- **계획과 달라지면**(L2·L3) 같은 PR에서 `plan.md`의 "결정 기록"에 날짜·바뀐 내용·이유를 적는다(SD-COM-ART-007). 수용 조건을 바꿔야 하면 구현을 멈추고 알린다 — spec 재승인 대상이다(SD-COM-GAT-006).
+- 위험 신호를 새로 발견했거나 L1이 한 문장으로 설명되지 않게 되면 멈추고 등급 재확정을 요청한다(`skills/_shared/sdlc-level.md` "등급을 바꿀 때").
 
-### Changes Made
-- 생성: <신규 파일 목록>
-- 수정: <변경 파일 목록>
+### Step 3: 커밋
 
-### Implementation Notes
-- <구현 중 주요 결정 사항>
-- <설계와의 차이점>
-
-### Next Steps
-- 테스트 작성/실행: `/jira-task test <TASK-ID>`
-- 코드 리뷰: `/jira-task review <TASK-ID>`
-```
-
-### Step 4: Completion Summary
-
-`skills/_shared/context-update.md` 패턴으로 worktree-local + aggregate `.jira-context.json`을 갱신 (impl은 Jira transition 없음 → `STATUS="-"`). Step 2.5의 self-check 결과를 `--patch`로 같이 넘겨 **Bash 1회**로 끝낸다. 호출 prompt가 스크립트 절대 경로를 이미 줬으면 lookup을 생략한다:
+바꾼 파일만 명시적으로 add한다(`git add -A` 금지). 커밋은 의미 단위로 나눠도 된다.
 
 ```bash
-SCRIPT_NAME="jira-context-update.py" OUT_VAR="JIRA_CTX_UPDATE_PY"
-# (prompt에 scripts 경로가 없을 때만) Read skills/_shared/script-lookup.md and execute its lookup block here
-python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> impl "-" \
-    "<worktree>/.jira-context.json" \
-    "<repoRoot>/.jira-context.json" \
-    --patch '{"implSelfCheck":{"planMatched":"<n>/<m>","lint":{"tool":"<도구명|none>","files":<N>,"errors":<N>,"warnings":<N>}}}'
+git add <운영 코드 파일...> [work/<TASK-ID>/plan.md]
+git commit -m "feat(<TASK-ID>): <요약>"       # 버그 수정은 fix(<TASK-ID>)
 ```
 
-출력의 `completedSteps=[...]`가 갱신 결과다 — 확인을 위해 파일을 다시 Read하지 않는다.
+### Step 4: 지속 지식 옮기기 (마지막 작업)
 
-이후 아래 형식으로 완료 요약 출력:
+이 작업에서 정해진 것 중 계속 유지할 내용을 공통 문서로 옮긴다(SD-COM-ART-008). L2·L3는 plan 작업 순서의 마지막 항목을 따른다. L1은 해당하는 것이 있을 때만.
+
+| 내용 | 위치 |
+|---|---|
+| 업무 정책 | `docs/policies/` (제품 책임자 승인 필요 — PR 본문에 표시) |
+| 새 용어 | `docs/glossary.md` (제품 책임자 승인 필요) |
+| 상태·불변식 | `docs/domain/` |
+| 구조 변화 | `docs/architecture/` |
+| 설계 결정 | `docs/decisions/` (ADR) |
+
+옮긴 것이 있으면 `git add <문서...>` → `git commit -m "docs(<TASK-ID>): 지속 지식 옮기기"`. 없으면 "없음"으로 기록한다. 프로젝트에 해당 폴더가 없으면 만들지 말고 PR 본문에 "옮길 문서 없음(폴더 미도입)"으로 남긴다.
+
+### Step 5: Self-Check (1회)
+
+1. **계획 대조**: plan 작업 순서(L1은 이슈 AC)를 실제 변경과 하나씩 대조한다. 빠진 항목은 마저 구현하고, 의도적으로 뺀 항목은 사유를 plan 결정 기록(L1은 Jira 코멘트)에 적는다.
+2. **이 작업의 테스트 통과**: test-write의 테스트를 한 번 더 돌린다. 실패가 남으면 완료로 처리하지 않는다.
+3. **Lint 1회**: `bash <scripts>/detect-lint.sh` 1회 호출(`LINT <name> <cmd>` / `FORMAT <name> <cmd>` / `NONE`). 출력 명령을 변경 파일 전체에 한 번에 실행하고, 오류는 고친 뒤 1회만 재실행한다. 구현 중에는 lint를 돌리지 않는다. verify는 이 기록을 인용한다.
+
+### Step 6: push와 PR
+
+`Read skills/_shared/pr-body.md` 후:
+- **L1**: push 후 draft PR을 연다. "변경 내용"에 무엇을 왜 바꿨는지 3~5줄, `testWriteSkipped`가 있으면 "검증"에 그 사유.
+- **L2·L3**: push 후 본문의 "계획과 달라진 점"(plan 결정 기록 요약), "테스트 기대값 변경"(context `testExpectationChanges`), "지속 지식 옮김"을 갱신한다.
+
+### Step 7: Jira와 context
+
+```markdown
+## Implementation Complete
+- 커밋: <SHA...> (feat/fix), <SHA> (docs, 지식 옮기기 — 없으면 "없음")
+- PR: <URL> (draft)
+- 계획과 달라진 점: 없음 | <요약>
+- 이 작업의 테스트: <n>/<n> 통과
+```
+
+```bash
+python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> impl "-" \
+    "<worktree>/.jira-context.json" "<repoRoot>/.jira-context.json" \
+    --patch '{"activeRole":null,"implSelfCheck":{"planMatched":"<n>/<m>","tests":"<통과>/<전체>","lint":{"tool":"<도구명|none>","files":<N>,"errors":<N>,"warnings":<N>}},"knowledgeTransfer":"<옮긴 문서 목록 | 없음>"}'
+```
+출력의 `completedSteps=[...]`가 갱신 결과다 — 파일을 다시 Read하지 않는다.
 
 ```
 ---
 ✅ **Implementation Complete** — <TASK-ID>
 
-- 생성된 파일: <list>
-- 수정된 파일: <list>
-- Self-check: Plan <n>/<m> 매칭, lint <errors> errors / <warnings> warnings (<도구명> | 스킵 사유)
-- Jira 코멘트 게시됨
+- 커밋: <목록>
+- 이 작업의 테스트: <n>/<n> 통과 / lint <errors> errors (<도구명> | 스킵 사유)
+- 지속 지식: <옮긴 문서 | 없음>
+- PR: <URL> (draft)
 
-**Progress**: init → start → approach → **impl ✓** → test → review → merge → pr → done
+**Progress**: init → start → approach → test-write → **impl ✓** → verify → pr → done
 
-**Next**: `/jira-task test <TASK-ID>` — 테스트 코드를 작성하고 실행합니다
+**Next**: `/jira-task verify <TASK-ID>` — 새 세션에서 수용 조건별로 검증합니다
 ---
 ```
-
-테스트 프레임워크가 없는 프로젝트면 `/jira-task review <TASK-ID>`를 대신 추천.

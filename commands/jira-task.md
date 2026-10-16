@@ -120,8 +120,11 @@ Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-approach", arg
 ### `impl <TASK-ID>`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-impl", args: "<TASK-ID>" })`
 
-### `test <TASK-ID>`
-Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-test", args: "<TASK-ID>" })`
+### `test-write <TASK-ID>`
+Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-test-write", args: "<TASK-ID>" })`
+
+### `test <TASK-ID>` (폐지)
+`test`는 v0.70.0에서 `test-write`(구현 전 실패 테스트)와 `verify`(수용 조건별 검증)로 나뉘었다. 안내 1줄 후 `completedSteps`에 `impl`이 있으면 verify, 없으면 test-write로 라우팅한다.
 
 ### `review <TASK-ID>`
 Use the `Skill` tool: `Skill({ skill: "jira-integration:jira-task-review", args: "<TASK-ID>" })`
