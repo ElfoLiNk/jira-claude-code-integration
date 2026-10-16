@@ -240,3 +240,5 @@ mock Jira·가짜 gh 샌드박스에서 DEMO-1(L1)을 끝까지, DEMO-2(L2, 위�
 | 그 밖의 문서 정합 | test 커밋 메시지(실패·회귀 방지 수), L1 push 조건, Progress 줄 `approach(L2·L3)`, Jira 링크 출처, Mode B 서명, 템플릿 머리 문구, init 안내 문구 |
 
 샌드박스에서 확인한 것: 승인 게이트(PR 작성자 거부·기술 책임자 통과), 미승인 test-write 정지, 역할 hook·토큰 차단, done 머지 확인, aggregate prune, `--artifact` 첨부. 확인하지 못한 것: Workflow 실행(auto·loop), L3, fix 루프, stacked 재정렬, Mode A verify.
+
+충돌 경로 재확인: DEMO-2를 `base-conflict.md`대로 해결(테스트 충돌을 test-writer로, 코드는 자동 병합) → 재검증 통과 → 머지까지 갔다. 이 과정에서 `--remove-step`(aggregate의 verify 제거)과 rebase 뒤 test 커밋 SHA 재탐색을 추가했다.
