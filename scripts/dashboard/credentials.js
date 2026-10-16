@@ -3,11 +3,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { execFileSync } = require('node:child_process');
 
 class CredentialsNotFoundError extends Error {
   constructor() {
     super(
-      'Jira credentials not found. Checked: env vars, .mcp.json, ~/.claude.json, ' +
+      'Jira credentials not found. Checked: .jira-context.json jira block, env vars, .mcp.json, ~/.claude.json, ' +
       '.claude/settings.local.json, ~/.claude/settings.json. ' +
       'Set JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN env vars or configure mcp-atlassian.'
     );
@@ -51,6 +52,30 @@ function extractFromMcpServers(mcpServers) {
   for (const srv of Object.values(mcpServers)) {
     const creds = extractFromMcpEnv(srv && srv.env);
     if (creds) return creds;
+  }
+  return null;
+}
+
+/**
+ * Step 0: .jira-context.json `jira` block {url, username, apiToken} — 정본 (jira-cli.py와 같은 순서).
+ * workspaceRoot와 git 메인 레포 루트(--git-common-dir의 부모; worktree 대응)를 본다.
+ */
+function tryContextBlock(workspaceRoot) {
+  const roots = [workspaceRoot];
+  try {
+    const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: workspaceRoot, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (common) roots.push(path.dirname(path.resolve(workspaceRoot, common)));
+  } catch {
+    // not a git repo — workspaceRoot only
+  }
+  for (const root of roots) {
+    const data = readJsonSafe(path.join(root, '.jira-context.json'));
+    const j = data && data.jira;
+    if (j && j.url && j.username && j.apiToken) {
+      return { jiraUrl: j.url, email: j.username, apiToken: j.apiToken, source: 'contextBlock' };
+    }
   }
   return null;
 }
@@ -178,6 +203,7 @@ function trySettingsGlobal() {
 function resolveCredentials(opts = {}) {
   const workspaceRoot = opts.workspaceRoot || process.cwd();
   return (
+    tryContextBlock(workspaceRoot) ||
     tryEnv() ||
     tryMcpJson(workspaceRoot) ||
     tryClaudeJson(workspaceRoot) ||

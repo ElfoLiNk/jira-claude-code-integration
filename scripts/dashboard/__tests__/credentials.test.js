@@ -76,6 +76,29 @@ test('U6: falls back to .mcp.json when env is absent', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// U12: .jira-context.json jira block takes priority over env (jira-cli.py와 같은 순서)
+test('U12: .jira-context.json jira block takes priority over env', () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, '.jira-context.json'), JSON.stringify({
+    jira: { url: 'https://ctx.example.com', username: 'ctx@ex.com', apiToken: 'ctx-token', project: 'X' },
+  }));
+
+  process.env.JIRA_URL = 'https://env.example.com';
+  process.env.JIRA_USERNAME = 'env@ex.com';
+  process.env.JIRA_API_TOKEN = 'env-token';
+  try {
+    const creds = loadCredentials({ workspaceRoot: dir, force: true });
+    assert.equal(creds.source, 'contextBlock');
+    assert.equal(creds.jiraUrl, 'https://ctx.example.com');
+    assert.equal(creds.email, 'ctx@ex.com');
+  } finally {
+    delete process.env.JIRA_URL;
+    delete process.env.JIRA_USERNAME;
+    delete process.env.JIRA_API_TOKEN;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // U7: throws CredentialsNotFoundError when all sources miss
 test('U7: throws CredentialsNotFoundError when all sources miss', () => {
   const dir = tmpDir();

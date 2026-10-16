@@ -17,14 +17,15 @@ set +e
 TASK_ID="${1:?TASK-ID required}"
 LOG_DIR="${2:-docs/review-log}"
 
-_GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -n "$_GIT_ROOT" ]; then
-    REVIEWER_VERSION=$(shasum -a 256 "$_GIT_ROOT/skills/jira-task-review/SKILL.md" 2>/dev/null | cut -c1-12)
-fi
-[ -z "$REVIEWER_VERSION" ] && REVIEWER_VERSION="unknown" && echo "⚠️ review-log: reviewerVersion 산출 실패, 'unknown'으로 기록"
-
 # 스크립트 경로: 자기 자신과 같은 디렉토리의 append-review-log.py
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# reviewerVersion은 플러그인 쪽 review SKILL.md 기준 (사용자 레포에는 이 파일이 없다)
+REVIEW_SKILL="$SCRIPT_DIR/../skills/jira-task-review/SKILL.md"
+if [ -f "$REVIEW_SKILL" ]; then
+    REVIEWER_VERSION=$( (sha256sum "$REVIEW_SKILL" 2>/dev/null || shasum -a 256 "$REVIEW_SKILL" 2>/dev/null) | cut -c1-12)
+fi
+[ -z "$REVIEWER_VERSION" ] && REVIEWER_VERSION="unknown" && echo "⚠️ review-log: reviewerVersion 산출 실패, 'unknown'으로 기록"
 APPEND_PY="$SCRIPT_DIR/append-review-log.py"
 
 TMPFILE=$(mktemp /tmp/review_subagent_XXXXXX.json)

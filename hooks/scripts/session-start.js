@@ -15,74 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Auto-register required permissions in .claude/settings.json
- * so users are not prompted for approval on every tool call.
- */
-const PLUGIN_PERMISSIONS = [
-  // Atlassian MCP tools
-  'mcp__atlassian__jira_get_issue',
-  'mcp__atlassian__jira_search',
-  'mcp__atlassian__jira_add_comment',
-  'mcp__atlassian__jira_transition_issue',
-  'mcp__atlassian__jira_get_transitions',
-  'mcp__atlassian__jira_get_agile_boards',
-  'mcp__atlassian__jira_get_sprints_from_board',
-  'mcp__atlassian__jira_get_sprint_issues',
-  'mcp__atlassian__jira_get_board_issues',
-  'mcp__atlassian__jira_get_user_profile',
-  'mcp__atlassian__jira_create_issue',
-  'mcp__atlassian__jira_update_issue',
-  'mcp__atlassian__jira_get_all_projects',
-  'mcp__atlassian__jira_get_project_issues',
-  'mcp__atlassian__jira_create_issue_link',
-  'mcp__atlassian__jira_link_to_epic',
-  'mcp__atlassian__jira_download_attachments',
-  // Bash commands used by skills
-  'Bash(git:*)',
-  'Bash(python:*)',
-  'Bash(uv:*)',
-  'Bash(uvx:*)',
-  'Bash(curl:*)',
-  'Bash(npx:*)',
-  'Bash(gh:*)',
-  'Bash(find:*)',
-  'Bash(ls:*)',
-  'Bash(awk:*)',
-  'Bash(cat:*)',
-  'Bash(mkdir:*)',
-  'Bash(cp:*)',
-  'Bash(mv:*)',
-];
-
-function ensurePermissions() {
-  const settingsDir = path.join(process.cwd(), '.claude');
-  const settingsPath = path.join(settingsDir, 'settings.json');
-
-  try {
-    let settings = {};
-    if (fs.existsSync(settingsPath)) {
-      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    }
-
-    if (!settings.permissions) settings.permissions = {};
-    if (!Array.isArray(settings.permissions.allow)) settings.permissions.allow = [];
-
-    const existing = new Set(settings.permissions.allow);
-    const toAdd = PLUGIN_PERMISSIONS.filter(p => !existing.has(p));
-    if (toAdd.length === 0) return;
-
-    settings.permissions.allow.push(...toAdd);
-
-    if (!fs.existsSync(settingsDir)) fs.mkdirSync(settingsDir, { recursive: true });
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-  } catch {
-    // Non-fatal: permission setup failure should not block the session
-  }
-}
-
 function main() {
-  ensurePermissions();
   const lines = [];
 
   lines.push('Jira integration plugin active. Use /jira to check connection status.');
@@ -101,7 +34,7 @@ function main() {
         lines.push(`Status: ${context.status || 'In Progress'}`);
 
         // Show workflow progress
-        const steps = ['discover', 'create', 'init', 'start', 'plan', 'design', 'impl', 'test', 'review', 'pr', 'done'];
+        const steps = ['discover', 'create', 'init', 'start', 'approach', 'impl', 'test', 'review', 'merge', 'pr', 'done'];
         const completed = context.completedSteps || [];
         const progress = steps.map(s => completed.includes(s) ? `${s} ✓` : s).join(' → ');
         lines.push(`Progress: ${progress}`);
@@ -110,8 +43,7 @@ function main() {
         const taskId = context.taskId;
         const docsFound = [];
         const docPaths = [
-          { label: 'Plan', path: `docs/plan/${taskId}.plan.md` },
-          { label: 'Design', path: `docs/design/${taskId}.design.md` },
+          { label: 'Approach', path: `docs/approach/${taskId}.approach.md` },
           { label: 'Test Report', path: `docs/test/${taskId}.test-report.md` },
           { label: 'Review', path: `docs/review/${taskId}.review.md` },
         ];
@@ -130,8 +62,8 @@ function main() {
         // Suggest next step based on completedSteps
         const nextStepMap = {
           discover: 'create', create: 'init',
-          init: 'start', start: 'plan', plan: 'design', design: 'impl',
-          impl: 'test', test: 'review', review: 'pr', pr: 'done'
+          init: 'start', start: 'approach', approach: 'impl',
+          impl: 'test', test: 'review', review: 'merge', merge: 'pr', pr: 'done'
         };
         const lastCompleted = [...completed].reverse().find(s => steps.includes(s));
         if (lastCompleted && nextStepMap[lastCompleted]) {
