@@ -167,6 +167,12 @@ class CommandTest(unittest.TestCase):
         m.cmd_comment(c, ["MAE-1", "## T\n- x"], {})
         self.assertEqual(calls[0][2], {"body": "h2. T\n* x"})
 
+    def test_comment_rejects_approval_token(self):
+        c, calls = self._client([])
+        with self.assertRaises(SystemExit):
+            m.cmd_comment(c, ["MAE-1", "검토 결과\nAPPROVE plan 3f1b7d5"], {})
+        self.assertEqual(calls, [])
+
     def test_get_compacts_attachments(self):
         c, calls = self._client([{"key": "MAE-1", "fields": {"summary": "s", "attachment": [
             {"id": "10", "filename": "ui.png", "mimeType": "image/png", "size": 5, "author": {"displayName": "x"},

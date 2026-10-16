@@ -47,12 +47,12 @@ def pr(comments, author="dev-choi", draft=True, state="OPEN"):
 class TokenTest(unittest.TestCase):
     def test_detects_token_lines(self):
         self.assertTrue(m.contains_approval_token("좋습니다\nAPPROVE plan 3f1b7d5"))
-        self.assertTrue(m.contains_approval_token("> **approve spec** abcdef0"))
-        self.assertTrue(m.contains_approval_token("APPROVE intent"))  # SHA 없어도 차단 대상
+        self.assertTrue(m.contains_approval_token("> `approve spec abcdef0`"))
 
-    def test_ignores_prose(self):
+    def test_ignores_prose_and_placeholder(self):
         self.assertFalse(m.contains_approval_token("plan을 APPROVE plan 형식으로 승인해 주세요"))
         self.assertFalse(m.contains_approval_token("APPROVED"))
+        self.assertFalse(m.contains_approval_token("다음 한 줄을 남겨 주세요:\nAPPROVE plan <SHA>\n(SHA = 3f1b7d5)"))
 
     def test_parse_requires_sha(self):
         self.assertEqual(m.parse_approvals("APPROVE plan\nAPPROVE Spec ABCDEF0"), [("spec", "abcdef0")])

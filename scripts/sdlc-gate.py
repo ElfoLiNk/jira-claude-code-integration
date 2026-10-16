@@ -40,8 +40,9 @@ from pathlib import Path
 
 ARTIFACTS = ("intent", "spec", "plan")
 
-# 코멘트 작성 경로(jira-cli.py comment, hooks/scripts/guard-approval.js)도 같은 패턴을 쓴다.
-APPROVAL_RE = re.compile(r"^[ \t>*_`]*APPROVE[ \t]+(intent|spec|plan)\b[ \t]*([0-9a-fA-F]{7,40})?", re.I | re.M)
+# 코멘트 작성 경로(jira-cli.py comment, hooks/scripts/guard-approval.js)도 같은 패턴으로 막는다.
+# SHA가 붙어야 유효한 승인이라, 승인 요청 코멘트의 "APPROVE plan <SHA>" 안내는 걸리지 않는다.
+APPROVAL_RE = re.compile(r"^[ \t>*_`]*APPROVE[ \t]+(intent|spec|plan)[ \t]+([0-9a-fA-F]{7,40})\b", re.I | re.M)
 
 ROLE_PRODUCT = "제품 책임자"
 ROLE_TECH = "기술 책임자"
@@ -56,8 +57,8 @@ def contains_approval_token(text: str) -> bool:
 
 
 def parse_approvals(text: str) -> list[tuple[str, str]]:
-    """본문에서 (artifact, sha) 목록을 뽑는다. SHA가 없는 줄은 무효라 버린다."""
-    return [(a.lower(), s.lower()) for a, s in APPROVAL_RE.findall(text or "") if s]
+    """본문에서 (artifact, sha) 목록을 뽑는다."""
+    return [(a.lower(), s.lower()) for a, s in APPROVAL_RE.findall(text or "")]
 
 
 # ---------------------------------------------------------------- 외부 호출

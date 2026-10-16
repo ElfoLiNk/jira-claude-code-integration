@@ -117,13 +117,15 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
   2. SHA가 PR 브랜치 이력에 있다.
   3. 그 SHA 이후 `work/<KEY>/<artifact>.md`가 바뀌지 않았다(`git diff <sha> HEAD -- <file>` 비어 있음). 바뀌었으면 재승인 필요(GAT-006 확장: AC뿐 아니라 파일 전체 기준).
   4. 위험 신호가 있는 L2·L3 plan은 승인자가 기술 책임자 목록에 있다(GAT-003).
-- **승인자 목록 출처**: 프로젝트 `AGENTS.md`의 "승인자" 표에서 역할별 GitHub 계정을 읽는다. 표준 템플릿에는 계정 열이 없으므로 §11 피드백 대상. 표를 못 읽으면 판정하지 않고 사람에게 묻는다(통과 처리 금지).
+- **승인자 목록 출처**: 프로젝트 `AGENTS.md`의 "## 승인자" 표(`| 역할 | 담당 |`)에서 "담당" 칸의 `@계정`을 GitHub 계정으로 읽는다. 표가 없거나 비었으면 §12-3대로 처리한다.
 - **L2 작업 담당자 = PR 작성자**인 경우 GitHub Approve는 쓸 수 없으므로 코멘트 형식이 유일한 경로다.
 
 ### 6.1 승인 토큰 위조 차단
 
-- `jira-cli.py comment`와 PR 코멘트 경로가 본문에 `^\s*APPROVE\s+(intent|spec|plan)\b` 줄이 있으면 거부한다.
-- PreToolUse hook `guard-approval.js`: Bash의 `gh pr review --approve`, `gh pr comment|gh api ...comments`에 토큰이 들어간 호출을 거부한다.
+- 차단 대상은 SHA까지 붙은 유효한 토큰이다. 승인 요청 코멘트는 `APPROVE plan <SHA>`처럼 SHA 자리를 비운 안내와 SHA를 따로 적는다.
+- `jira-cli.py comment`는 본문에 토큰 줄이 있으면 거부한다.
+- PreToolUse hook `guard-approval.js`: `gh pr review --approve`를 거부하고, gh·curl·jira-cli 호출의 명령 텍스트나 body 파일에 토큰이 있으면 거부한다.
+- L2는 spec·plan을 함께 승인하므로 `APPROVE plan <sha>`가 spec.md·plan.md 둘 다를 덮는다(둘 다 SHA 이후 불변이어야 통과).
 - **남는 위험**: 에이전트가 curl로 GitHub API를 직접 부르면 막을 수 없다. 같은 계정을 쓰는 한 구조적 한계이고, 표준 쪽 규칙 보강이 필요하다(§11-2).
 
 ## 7. 역할 표시와 테스트 보호
@@ -132,7 +134,8 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 - PreToolUse hook `guard-test-files.js` (Edit|Write, Bash 리다이렉트):
   - `implementer`: 테스트 파일 쓰기 거부.
   - `verifier`: 모든 쓰기 거부, 단 `work/<KEY>/evidence/` 예외.
-- 테스트 파일 판정 패턴은 기본값(`**/*.test.*`, `**/*.spec.*`, `**/test/**`, `**/tests/**`, `**/__tests__/**`, `src/test/**`) + 프로젝트 AGENTS.md "검사" 절의 지정이 있으면 그것.
+- 테스트 파일 판정 패턴은 고정값(`*.test.*`, `*.spec.*`, `test/`, `tests/`, `__tests__/`, `src/test/`, `test_*.py`, `*_test.py|go`). 프로젝트별 지정은 필요해지면 추가한다. `work/` 아래는 테스트 파일로 보지 않는다.
+- Bash는 명시적인 쓰기 대상(`>`, `>>`, `tee`, `sed -i`, `Set-Content`/`Add-Content`/`Out-File`)만 판정하고, 저장소 밖 경로는 판정하지 않는다.
 - 03 표준 참조 구현(`03-test-automation/configs/claude-code/`, 환경변수 `AGENT_ROLE`)과의 관계: 환경변수는 sub-agent별로 줄 수 없어서 파일 표시를 쓴다. `AGENT_ROLE`이 있으면 그것을 우선한다(표준 hook과 같이 깔려도 충돌하지 않게).
 - 남는 위험: 역할 파일은 에이전트가 고칠 수 있다. 최종 강제는 CI(VER-004)와 리뷰 점검표다.
 
@@ -197,7 +200,7 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 5. 판정 질문 1번이 L2 예시(버그 수정, 기존 요구사항 안 변경)를 L3로 흡수. "새로운 제품 동작·요구사항 변경"으로 좁히기.
 6. VER-002 "리뷰 요청 금지"와 산출물 승인용 리뷰 요청(`S:223`)의 용어 분리.
 7. 코드 오너 1인 경로의 자기 승인 교착(ROL-006 예시).
-8. `T/AGENTS.md` 승인자 표에 GitHub 계정 열 추가(§6 자동 확인용).
+8. `T/AGENTS.md` 승인자 표의 "담당" 칸 `@`가 GitHub 계정이라는 것을 명시(§6 자동 확인이 이 칸을 읽음).
 
 ## 12. 추가 결정 (2026-10-16 확정)
 

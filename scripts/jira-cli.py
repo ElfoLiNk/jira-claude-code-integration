@@ -376,9 +376,16 @@ def _read_text_arg(s: str) -> str:
     return s
 
 
+# sdlc-gate.py의 APPROVAL_RE와 같은 패턴. 에이전트는 승인 형식의 글을 쓰지 않는다 (SD-COM-ROL-002)
+_APPROVAL_RE = re.compile(r"^[ \t>*_`]*APPROVE[ \t]+(intent|spec|plan)[ \t]+[0-9a-fA-F]{7,40}\b", re.I | re.M)
+
+
 def cmd_comment(c: Client, a: list[str], opt: dict):
     key = _arg(a, 0, "KEY")
-    body = md_to_wiki(_read_text_arg(_arg(a, 1, "markdown")))
+    text = _read_text_arg(_arg(a, 1, "markdown"))
+    if _APPROVAL_RE.search(text):
+        raise SystemExit("jira-cli: 승인 토큰(APPROVE <intent|spec|plan> <SHA>) 줄이 든 코멘트는 쓸 수 없다 — 승인은 승인자가 직접 남긴다")
+    body = md_to_wiki(text)
     data = c.request("POST", f"/rest/api/2/issue/{key}/comment", body={"body": body})
     return {"id": data.get("id"), "created": data.get("created")}
 
