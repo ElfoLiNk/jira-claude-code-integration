@@ -14,6 +14,11 @@ done 단계는 aggregate에서 해당 태스크 항목을 **제거**한다 (생�
     aggregate에는 level / riskSignals / stackedOn만 해당 tasks[i]에 반영한다 (v0.70.0; 나머지는 pollution 규칙).
     v0.70.0 필드: level("L1"|"L2"|"L3"), riskSignals(위험 신호 번호 목록), activeRole("test-writer"|"implementer"|"verifier"),
     stackedOn({key, branch, sha} — 앞 태스크 브랜치 위에 쌓은 경우).
+
+--cache-issue <file|-> (v0.70.0): `jira-cli.py get` 출력(JSON)을 worktree-local `cachedIssue`로 기록하고 fetchedAt을
+    현재 UTC로 채운다. step "-"와 함께 쓰면 캐시만 갱신한다. aggregate에는 기록하지 않는다.
+
+ctx-file이 없으면 stderr에 error를 내고 exit 1 (v0.70.0 — 잘못된 경로로 aggregate 갱신이 조용히 빠지는 것을 막는다).
     용도: impl/fix 단계가 self-check 기록과 completedSteps 갱신을 Bash 1회로 끝내기.
     step에 "-"를 주면 completedSteps 추가·타임스탬프 기록 없이 patch만 적용한다 (fix loop의 test/review 제거용).
     갱신 후 worktree 파일의 completedSteps를 `completedSteps=[...]`로 출력하므로 재-Read가 필요 없다.
@@ -49,7 +54,8 @@ Behavior:
       (never created from scratch — leave None as-is).
 
 Exit codes:
-    0  All requested files processed (missing files are skipped with a notice).
+    0  All requested files processed.
+    1  One or more ctx-files were missing (the others are still processed).
     2  Wrong arg count.
 """
 
@@ -150,6 +156,8 @@ def update_context(ctx_file: str, task_id: str, step: str, status: str, ts: str,
             updated = len(ctx["tasks"]) < before
         else:
             agg_patch = {k: v for k, v in (patch or {}).items() if k in _AGGREGATE_PATCH_KEYS}
+            if step == "-" and not agg_patch and not removed:
+                return f"aggregate unchanged (worktree-only patch): {ctx_file}"
             for t in ctx["tasks"]:
                 if t.get("taskId") == task_id and (step != "-" or agg_patch):
                     if step != "-":
@@ -250,6 +258,20 @@ def main(argv: list[str]) -> int:
             print(f"error: --patch JSON 파싱 실패: {e}", file=sys.stderr)
             return 2
         argv = argv[:i] + argv[i + 2:]
+    if "--cache-issue" in argv:
+        i = argv.index("--cache-issue")
+        if i + 1 >= len(argv):
+            print("error: --cache-issue requires a file path (or -)", file=sys.stderr)
+            return 2
+        src = argv[i + 1]
+        try:
+            text = sys.stdin.read() if src == "-" else open(src, encoding="utf-8").read()
+            issue = json.loads(text)
+        except (OSError, ValueError) as e:
+            print(f"error: --cache-issue 읽기 실패: {e}", file=sys.stderr)
+            return 2
+        patch = {**(patch or {}), "cachedIssue": {**issue, "fetchedAt": _now_utc_iso()}}
+        argv = argv[:i] + argv[i + 2:]
     if len(argv) < 5:
         print(__doc__, file=sys.stderr)
         return 2
@@ -264,9 +286,16 @@ def main(argv: list[str]) -> int:
         )
         return 2
     ts = _now_utc_iso()
+    rc = 0
     for ctx_file in argv[4:]:
-        print(update_context(ctx_file, task_id, step, status, ts, patch))
-    return 0
+        out = update_context(ctx_file, task_id, step, status, ts, patch)
+        if out.startswith("missing: "):
+            # 경로를 잘못 넘긴 것을 조용히 넘기지 않는다 — 없는 파일은 인자에서 빼고 호출한다
+            print(f"error: {out}", file=sys.stderr)
+            rc = 1
+        else:
+            print(out)
+    return rc
 
 
 if __name__ == "__main__":

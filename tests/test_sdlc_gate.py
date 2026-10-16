@@ -159,8 +159,11 @@ class CheckTest(unittest.TestCase):
         self.assertTrue(out["warnings"])
 
     def test_pr_state(self):
-        with mock.patch.object(m, "fetch_pr", return_value=pr([], draft=False)):
-            self.assertEqual(m.pr_state("K-1")["state"], "ready")
+        conflicting = pr([], draft=False)
+        conflicting["mergeable"] = "CONFLICTING"
+        with mock.patch.object(m, "fetch_pr", return_value=conflicting):
+            st = m.pr_state("K-1")
+            self.assertEqual((st["state"], st["mergeable"]), ("ready", "CONFLICTING"))
         merged = pr([], state="MERGED")
         merged["mergeCommit"] = {"oid": "abc"}
         with mock.patch.object(m, "fetch_pr", return_value=merged):

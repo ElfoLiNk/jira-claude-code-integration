@@ -149,6 +149,26 @@ class StripAggregatePollutionTest(unittest.TestCase):
         self.assertEqual(a["tasks"][0]["stackedOn"], stacked)
         self.assertEqual(a["tasks"][0]["completedSteps"], ["init"])
 
+    def test_missing_ctx_file_exits_1_but_processes_others(self):
+        wt = self._write({"taskId": "T-1", "completedSteps": ["init"]})
+        rc = module.main(["x", "T-1", "start", "진행 중", str(wt), str(wt) + ".nope"])
+        self.assertEqual(rc, 1)
+        with open(wt, encoding="utf-8") as f:
+            self.assertIn("start", json.load(f)["completedSteps"])
+
+    def test_cache_issue_sets_fetched_at_worktree_only(self):
+        wt = self._write({"taskId": "T-1", "completedSteps": ["init"]})
+        agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["init"]}]})
+        issue = self._write({"key": "T-1", "summary": "s", "labels": ["sdlc-L1"], "attachments": []})
+        rc = module.main(["x", "T-1", "-", "-", str(wt), str(agg), "--cache-issue", str(issue)])
+        self.assertEqual(rc, 0)
+        with open(wt, encoding="utf-8") as f:
+            ci = json.load(f)["cachedIssue"]
+        self.assertEqual(ci["labels"], ["sdlc-L1"])
+        self.assertTrue(ci["fetchedAt"].endswith("Z"))
+        with open(agg, encoding="utf-8") as f:
+            self.assertNotIn("cachedIssue", json.dumps(json.load(f)))
+
     def test_done_step_prunes_aggregate_entry_but_updates_worktree(self):
         wt = self._write({"taskId": "T-1", "completedSteps": ["merge"]})
         agg = self._write({"initialized": "x", "tasks": [{"taskId": "T-1", "completedSteps": ["merge"]}, {"taskId": "T-2"}]})

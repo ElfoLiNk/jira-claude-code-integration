@@ -5,7 +5,7 @@
 
 Usage (작업 worktree에서 실행):
     python3 sdlc-gate.py check <KEY> <intent|spec|plan> [--level L1|L2|L3] [--risk|--no-risk]
-    python3 sdlc-gate.py pr-state <KEY>
+    python3 sdlc-gate.py pr-state <KEY>         {state, number, url, base, head, mergeable, mergeCommit}
     python3 sdlc-gate.py scan-token < text      승인 토큰이 있으면 exit 1 (코멘트 작성 경로 차단용)
 
 승인 코멘트 형식 (PR 코멘트나 리뷰 본문의 한 줄):
@@ -127,7 +127,7 @@ def parse_codeowners(root: Path) -> list[str]:
 def fetch_pr(branch: str) -> dict | None:
     try:
         return _gh_json(["pr", "view", branch, "--json",
-                         "number,url,state,isDraft,author,headRefName,baseRefName,mergeCommit,comments,reviews"])
+                         "number,url,state,isDraft,mergeable,author,headRefName,baseRefName,mergeCommit,comments,reviews"])
     except GateError as e:
         if "no pull requests found" in str(e).lower():
             return None
@@ -242,6 +242,8 @@ def pr_state(key: str) -> dict:
     state = {"MERGED": "merged", "CLOSED": "closed"}.get(st) or ("draft" if pr.get("isDraft") else "ready")
     return {"state": state, "number": pr.get("number"), "url": pr.get("url"),
             "base": pr.get("baseRefName"), "head": pr.get("headRefName"),
+            # MERGEABLE | CONFLICTING | UNKNOWN — 열린 PR이 base와 충돌하는지 (loop sync가 격리 판단에 쓴다)
+            "mergeable": pr.get("mergeable"),
             "mergeCommit": (pr.get("mergeCommit") or {}).get("oid")}
 
 
