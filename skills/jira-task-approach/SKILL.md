@@ -1,172 +1,132 @@
 ---
 name: jira-task-approach
-description: "Generate a level-aware approach document (plan + design 통합). 작업 규모(L1/L2/L3)에 맞춰 분량을 조정. Triggers: jira-task approach, approach task; 접근 설계, 통합 설계."
+description: "Write the standard L2/L3 artifacts (intent·spec·plan in work/<KEY>/), open a draft PR and stop for human approval. Triggers: jira-task approach, approach task; 명세, 계획, 승인 요청."
 user-invocable: false
 argument-hint: "<TASK-ID> [requirements 문서 경로]"
 allowed-tools:
   - Read
   - Write
+  - Edit
   - Bash
   - Glob
   - Grep
 ---
 
-# jira-task-approach: Generate Approach Document (level-aware)
+# jira-task-approach: 산출물 작성과 승인 요청
 
 **Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Overview
 
-`jira-task-approach`는 기존 `plan` + `design` 두 단계를 단일 단계로 통합한다. 작업 규모(L1/L2/L3)에 따라 분량과 깊이를 조정한다 — 작은 작업에 무거운 설계 문서를 쓰지 않는다.
+L2·L3 작업의 산출물을 `work/<TASK-ID>/`에 쓰고 커밋한 뒤 draft PR에서 승인을 요청하고 **멈춘다**. 승인 전에는 운영 코드를 고치지 않는다(SD-COM-GAT-004).
 
-**입력:**
-- `<TASK-ID>` (필수)
-- `.jira-context.json.cachedIssue` (Cache-First Fetch)
-- `.jira-context.json.breakdownLevel` (있으면 우선)
-- discover 산출물 `docs/requirements/<slug>.requirements.md`의 `Technical Approach Hint` 섹션 (있으면 입력 — 이슈 description의 `Requirements:` 줄로 확정, Step 2)
+| 등급 | 이번 실행이 만드는 것 | 승인자 |
+|---|---|---|
+| L1 | 없음 — 계획은 PR 본문 "변경 내용"으로 대신한다. 안내만 하고 종료 | — |
+| L2 | `spec.md` + `plan.md` 한 번에 | 작업 담당자(위험 신호가 있으면 기술 책임자) |
+| L3 | 승인 상태에 따라 `intent.md` → `spec.md` → `plan.md` 중 다음 하나 | intent·spec: 제품 책임자 / plan: L2와 같음 |
 
-**출력:**
-- `docs/approach/<TASK-ID>.approach.md`
-- Jira 코멘트 + 첨부 (가능 시)
-
-**비목표:**
-- 코드 작성/실행 (impl 단계 책임)
-- 테스트 작성/실행 (test 단계 책임)
+**비목표**: 코드·테스트 작성(test-write·impl), 승인 판단(사람과 `sdlc-gate.py`), draft 해제.
 
 ## Workflow
 
-### Step 0: Determine Breakdown Level
+### Step 0: 등급과 대상 산출물 결정
 
-레벨 결정 우선순위:
+1. context `level`을 읽는다. 없으면 멈추고 `/jira-task start <TASK-ID>`(등급 확정)를 안내한다. issuetype으로 추정하지 않는다.
+2. **Epic**이면 산출물을 만들지 않는다. `subtasks` + `issuelinks`(`is blocked by` 포함)로 자식 작업 목록과 순서·병렬 가능 여부를 응답에 표로 보여 주고 "자식 작업마다 start → approach"를 안내한 뒤 종료한다. 자식이 0건이면 `/jira-task create`로 먼저 분해하라고 안내한다.
+3. **L1**이면 종료: `L1은 산출물이 없습니다. /jira-task test-write <TASK-ID> (동작 불변이면 impl)`.
+4. **L3**이면 다음 대상을 고른다. 승인 확인은 스크립트 출력만 믿는다:
+   ```bash
+   python3 "<scripts>/sdlc-gate.py" check <TASK-ID> intent   # exit 0 승인 / 1 미승인 / 2 오류
+   ```
+   - `intent.md` 없음 → intent
+   - intent 미승인 → 사용자가 수정을 요청했으면 intent를 고친다. 아니면 Step 7의 "승인 대기" 요약만 출력하고 종료
+   - intent 승인, `spec.md` 없음 → spec (spec도 같은 방식으로 확인) → 그다음 plan
+5. `docs/approach/<TASK-ID>.approach.md`(구버전 산출물)가 있으면 경고 1줄만 남긴다. 옮기거나 지우지 않는다.
 
-1. **`.jira-context.json.breakdownLevel`** (`"L1"` | `"L2"` | `"L3"`) — Sub 1.3에서 기록된 값. hit이면 그대로 사용.
-2. **Jira issuetype 폴백 추론** — context에 값 없으면 cachedIssue의 issuetype으로:
-   - `Subtask`, `Task`, `Bug` → **L1**
-   - `Story` → **L2**
-   - `Epic` → **L3**
-   - 그 외 → **L1** (보수적)
-3. **설계 차원 승급 체크** — 1~2로 정한 레벨이 L1이어도, 작업이 다음 중 하나라도 건드리면 최소 **L2로 격상**(이미 L2/L3면 유지): 데이터 모델/스키마 변경 · 트랜잭션·원자성 경계 · 외부 노출 인터페이스/API 계약 · 동시성·멱등성·순서 · 보안·권한 경계. 이 차원들이 곧 "코딩 전에 못 박아야 하는 비가역 결정"이므로 5줄 요약으로는 부족하다.
-4. 결정된 레벨을 사용자에게 1줄로 알린다 — 예: `📐 Approach level: L2 (issuetype Story 폴백)` / 격상 시 사유 명시 `📐 L2 (Task지만 스키마 변경 → 격상)`.
-
-사용자가 다음 턴에 자연어로 변경 요청 시("L1로 줄여줘") 그대로 따른다 — 별도 플래그 없음.
+사용자에게 1줄로 알린다 — 예: `📐 L3 — intent 승인 확인(@po-kim, 3f1b7d5) → spec 작성`.
 
 ### Step 1: Cache-First Fetch
 
-`.jira-context.json`의 `cachedIssue`를 먼저 확인 (CLAUDE.md "Cache-First Fetch" 참고).
+context `cachedIssue`가 `key === <TASK-ID>`이고 `summary`/`description`/`issuetype`/`labels`/`attachments`(빈 배열 허용)/`fetchedAt`이 있으면 그대로 쓴다. 아니면 `python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks` 후 worktree-local `cachedIssue`를 갱신한다(`fetchedAt`은 UTC `Z`).
 
-- **hit 조건**: `key === <TASK-ID>` AND `summary`/`description`/`issuetype`/`attachments`(빈 배열 허용) 모두 존재 AND `fetchedAt` 존재. → fetch 생략.
-- **miss**: `python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks` (`skills/_shared/jira-cli.md`). L3는 child Story 시퀀싱이 필요하므로 `subtasks`/`issuelinks` 포함이 중요.
-- 호출 후 `cachedIssue` 갱신. `fetchedAt`은 `new Date().toISOString()` (UTC `Z`).
+### Step 1.5: 첨부와 참조 읽기
 
-### Step 1.5: Load Issue Attachments & References
+화면 이미지·기획서·명세서 첨부는 description보다 구체적인 요구사항인 경우가 많다. **있으면 읽고 반영한다.**
 
-이슈에 첨부된 화면 이미지·기획서·명세서는 description보다 구체적인 요구사항인 경우가 많다. **있으면 반드시 읽고 approach에 반영한다.**
+1. `cachedIssue.attachments`에서 플러그인 산출물(`<TASK-ID>.`로 시작)을 뺀다. 이미지(≤5MB)·PDF(≤10MB)·텍스트류(md/txt/csv/json/yaml/xml/html/sql, ≤1MB)를 최대 10개, description에 `!파일명!`으로 삽입된 것부터 고른다. 그 밖의 형식은 파일명만 기록한다.
+2. `python3 "<scripts>/jira-cli.py" download "${TMPDIR:-/tmp}/jira-attachments/<TASK-ID>" <id>...` — 실패해도 경고 1줄 후 진행.
+3. Read로 열어 화면 구성·필드·흐름·수치·예외 조건처럼 구현에 영향을 주는 사실만 쓴다. description 속 외부 링크는 fetch하지 않고 URL만 기록한다.
+4. 반영 위치: spec의 "외부 원본"(첨부·링크와 검토한 판), 요구사항·수용 조건. 첨부와 description이 충돌하면 spec "결정 사항"이 아니라 intent·spec의 미결 질문으로 남긴다.
 
-1. **대상 선별** — `cachedIssue.attachments`(`[{id, filename, mimeType, size}]`)에서:
-   - 제외: 플러그인 산출물(`<TASK-ID>.` 로 시작하는 `.md` — approach/test-report/review 등).
-   - 읽기 대상: 이미지(png/jpg/jpeg/gif/webp, ≤5MB), PDF(≤10MB), 텍스트류(md/txt/csv/json/yaml/xml/html/sql, ≤1MB). description에 `!파일명!`으로 삽입된 이미지를 우선한다. 최대 10개.
-   - 그 외(docx/xlsx/pptx/zip/동영상, 크기 초과): 다운로드하지 않고 파일명만 기록.
-   - 대상이 0개면 이 Step을 건너뛴다.
-2. **다운로드** — 대상 id를 한 번에:
-   `python3 "<scripts>/jira-cli.py" download "${TMPDIR:-/tmp}/jira-attachments/<TASK-ID>" <id> [<id>...]`
-   실패해도 비차단 — 경고 1줄 후 description만으로 진행.
-3. **읽기** — 출력의 `path`를 Read로 연다 (이미지는 시각적으로 확인, PDF는 `pages`로 필요한 범위만). 화면 구성·필드·흐름·수치·예외 조건 등 **구현에 영향을 주는 사실**만 추려서 쓴다.
-4. **description 속 외부 링크**(Confluence·Figma·Google Docs 등)는 fetch하지 않고 URL만 기록한다.
-5. **반영** — 문서 헤더 `References`에 참고한 첨부/링크를 나열하고, 첨부에서 얻은 요구사항을 본문(핵심 결정·Implementation Plan·검증)에 녹인다. 첨부와 description이 충돌하거나 읽지 못한 첨부가 판단에 필요하면 Open Items(L1은 리스크 줄)로 남긴다.
+### Step 2: 요구사항 문서와 공통 문서
 
-### Step 2: Load Requirements Inputs
+1. 요구사항 문서를 `Read skills/_shared/requirements-link.md`의 순서(사용자 지정 → 출처 줄 → 키 역참조 → Glob, 모호하면 채택 안 함)로 확정한다. 노드를 알면 그 노드와 상위 Story 범위만 쓴다. 문서 내용은 복사하지 않고 링크한다(SD-COM-ART-004) — intent의 배경, spec의 참조 절.
+2. 프로젝트 공통 문서가 있으면 읽는다: spec 전에는 `docs/policies/`·`docs/glossary.md`, plan 전에는 `docs/domain/`·`docs/architecture/`·`docs/decisions/`. 없는 폴더는 건너뛴다.
+3. 남은 Open Questions(P1/P2/[CONFLICT])는 intent·spec의 미결 질문으로 옮긴다.
 
-표기 규약은 `Read skills/_shared/requirements-link.md`. 요구사항 문서는 아래 순서로 **확정**한다 — 먼저 맞는 규칙에서 멈춘다. 틀린 문서를 인용하는 것보다 hint 없이 진행하는 편이 낫다.
+### Step 3: 산출물 쓰기
 
-1. **사용자 지정**: 호출 프롬프트에 문서 경로가 있으면 그 파일.
-2. **출처 줄**: `cachedIssue.description`의 출처 줄. 파일이 없으면(미커밋·미공유) 경고 1줄 후 hint 없음으로 진행 — 3·4로 내려가 추측하지 않는다.
-3. **키 역참조**: `docs/requirements/*.requirements.md`에서 이슈 키 표기 `[<TASK-ID>]`를 Grep — 정확히 1건이면 채택, 그 줄의 노드를 `<노드>`로 본다.
-4. **Glob 폴백** (`docs/requirements/*.requirements.md`): 0건 → hint 없음. 1건 → 채택. N건 → slug가 cachedIssue.summary와 명확히 대응하는 1건만 채택하고, 모호하면 **채택하지 않는다** — hint 없음으로 진행하고 후보 목록을 Open Items(L1은 리스크 줄)에 남긴 뒤 사용자에게 1줄로 알린다 (경로를 지정해 재실행하면 1번 적용).
+양식은 플러그인 `templates/sdlc/<intent|spec|plan>.md`를 Read해 쓴다. 맨 위 표준 사본 표시 주석과 안내 HTML 주석은 지우고, 절 제목과 순서는 유지한다. 산출물에 코드 스니펫을 넣지 않는다.
 
-`<노드>`(예: `Sub-task 2.1`)를 알면 `Proposed Issue Breakdown`에서 그 노드와 상위 Story를 찾아, 아래 섹션 중 해당 범위와 관련된 내용만 쓴다. approach 문서 `Source`에는 경로와 확정 규칙 번호(예: `출처 줄`)를 적는다.
+- **intent.md**: 문제·기대 결과·영향 범위·제약·미결 질문. 해결 방법은 쓰지 않는다.
+- **spec.md**: 등급, 이슈 링크, 참조(정책·도메인·용어 링크), 요구사항(버그면 "버그" 절), 수용 조건 `AC-01`…(이슈의 AC를 검증 가능한 문장으로; 고객 요구사항 ID가 있으면 괄호로), 범위 밖. "결정 사항"에는 승인 기록이 있는 것만 적는다 — 대화에서 나온 합의는 미결 질문으로 둔다(SD-COM-ART-010).
+- **plan.md**: 위험 신호(context `riskSignals`), 바뀌는 파일, 작업 순서(마지막은 지속 지식 옮기기 — 옮길 문서가 없으면 "없음"), 위험과 되돌리는 방법, 검증 방법(AC마다 테스트 이름이나 확인 방법 — test-write가 이 표로 테스트를 쓴다), 결정 기록(비워 둠).
 
-채택한 파일에서 다음 섹션을 추출:
-- `## Technical Approach Hint` (필수 입력 — 있으면 그대로 인용)
-- `## Codebase Context` (참고)
-- `## Functional Requirements` (참고)
-- `## Open Questions` (남아 있는 P1/P2/[CONFLICT]가 있으면 approach 문서의 Open Items로 이월)
+산출물에 "승인됨" 같은 상태 문구를 쓰지 않는다. 승인은 PR 코멘트로만 기록된다.
 
-requirements 파일이 없으면 Step 3에서 `Source` 섹션을 `N/A — discover 생략`으로 표기.
+### Step 4: 커밋
 
-### Step 3: Generate Approach Document
-
-레벨별 출력 템플릿은 `Read skills/jira-task-approach/refs/level-templates.md` 후 해당 레벨 블록만 사용한다.
-
-#### 3.0 L3 Empty-Child Guard
-
-레벨이 **L3**일 때만 적용. Step 1에서 fetch/cache한 `cachedIssue`의 `subtasks` + `issuelinks`(`is blocked by` 역방향 포함)를 합쳐 child Story 후보 수를 센다. 0건이면 빈 시퀀싱 표만 만들어지므로 **여기서 조기 종료**한다.
-
-- 사용자에게 안내 출력:
-
-  ```
-  ⚠️  L3 Epic의 child Story가 0건입니다.
-  먼저 `/jira-task create` 또는 Jira에서 child issue를 분해 등록한 뒤 다시 실행하세요.
-  ```
-
-- 문서 생성/Jira 코멘트/첨부 모두 **건너뛴다**.
-- `.jira-context.json`의 `completedSteps`에 `"approach"`를 **추가하지 않는다** (실행되지 않은 것으로 간주).
-- 정상 종료(에러 아님). 후속 Step 3.1~5는 수행하지 않는다.
-
-L1/L2 또는 child 1건 이상의 L3는 본 가드를 통과하여 3.1로 진입한다.
-
-#### 3.1 디렉토리 + 베이스 템플릿 복사
+이번에 만든 파일만 명시적으로 add한다(`git add -A` 금지).
 
 ```bash
-mkdir -p docs/approach
-perl -0777 -pe 's/<!--.*?-->//gs' templates/approach.template.md \
-    > docs/approach/<TASK-ID>.approach.md
+git add work/<TASK-ID>/spec.md work/<TASK-ID>/plan.md        # L3는 그 단계 파일 하나
+git commit -m "docs(<TASK-ID>): spec·plan"                      # L3: "docs(<TASK-ID>): intent" 등
+SHA=$(git rev-parse --short HEAD)
 ```
 
-#### 3.2 레벨별 본문 채우기
+산출물을 고친 재실행이면 메시지 끝에 수정 사유를 붙인다(예: `docs(<TASK-ID>): spec AC-02 수정`). 승인 뒤 수정하면 앞선 승인은 무효가 된다는 것을 응답에 적는다(SD-COM-GAT-006).
 
-`refs/level-templates.md`에서 결정된 레벨의 출력 형식만 복사하여 본문 영역을 채운다. 다른 레벨 블록은 사용하지 않는다.
+### Step 5: draft PR과 승인 요청
 
-- **L1 Single (5줄)**: 변경 영역, 핵심 결정, 검증, 리스크, 롤백 — 각 1줄.
-- **L2 Story (한 페이지)**: Approach Summary, Architecture sketch, Implementation Plan(파일별), Key Decisions, Test Plan, Risks. 각 섹션 5-10줄 이내.
-- **L3 Epic (시퀀싱만)**: child Story 목록 + 의존/순서/병렬 가능 여부. 상세 설계는 자식 Story가 담당하므로 본 문서에서는 다루지 않는다.
-  - child Story 식별: cachedIssue의 `subtasks` + `issuelinks` (`is blocked by` 역방향 포함).
+1. `Read skills/_shared/pr-body.md` 후 push, draft PR 생성 또는 본문 갱신.
+2. 승인자 계정: 프로젝트 `AGENTS.md` "## 승인자" 표의 `@계정`. intent·spec(L3)은 제품 책임자, plan은 작업 담당자(PR 작성자) — 위험 신호가 있으면 기술 책임자. 표가 없으면 PR 작성자·CODEOWNERS로 보고 경고를 코멘트에 넣는다. 승인자가 PR 작성자가 아니면 `gh pr edit feature/<TASK-ID> --add-reviewer <login>`.
+3. PR 코멘트(`gh pr comment feature/<TASK-ID> --body-file <파일>`):
+   ```markdown
+   ## 승인 요청: <spec·plan | intent | spec | plan>
 
-#### 3.3 공통 메타 채우기
+   - 대상 커밋: <SHA>
+   - 파일: work/<TASK-ID>/spec.md, work/<TASK-ID>/plan.md
+   - 승인자: @<login> (<역할>)
 
-문서 헤더의 placeholder 일괄 치환:
-- `{task_id}` → 실제 TASK-ID
-- `{summary}` → cachedIssue.summary
-- `{level}` → `L1` | `L2` | `L3`
-- `{level_name}` → `Single` | `Story` | `Epic`
+   검토 후 승인하시면 아래 형식의 한 줄을 코멘트로 남겨 주세요. `<SHA>` 자리에 위 대상 커밋을 넣습니다.
 
-### Step 4: Post Summary to Jira
+       APPROVE <plan|intent|spec> <SHA>
 
-`python3 "<scripts>/jira-cli.py" comment <TASK-ID> @<scratchpad md 파일>` (본문은 아래 markdown — `skills/_shared/jira-cli.md`):
+   수정이 필요하면 코멘트로 알려 주세요. 파일을 고치면 새 커밋으로 다시 승인을 요청합니다.
+   ```
+   L2는 `APPROVE plan`이 spec·plan을 함께 승인한다. **코멘트에 실제 SHA를 형식 줄과 붙여 쓰지 않는다** — 그 줄은 승인 기록으로 읽히고, hook과 jira-cli가 막는다.
 
-```
-## Approach Document Created
-
-- **Level**: <L1/L2/L3> (<Single/Story/Epic>)
-- **핵심**: <Approach Summary 1줄>
-
-상세 내용은 첨부된 `<TASK-ID>.approach.md`를 참고하세요.
-```
-
-### Step 4.5: Attach Approach Document to Jira
-
-공용 스크립트로 첨부 업로드:
+### Step 6: Jira 반영
 
 ```bash
-SCRIPT_NAME="jira-attach.sh" OUT_VAR="JIRA_ATTACH_SH"
-# Read skills/_shared/script-lookup.md and execute its lookup block here
-[ -n "$JIRA_ATTACH_SH" ] && bash "$JIRA_ATTACH_SH" <TASK-ID> docs/approach/<TASK-ID>.approach.md
+python3 "<scripts>/jira-cli.py" attach <TASK-ID> work/<TASK-ID>/spec.md work/<TASK-ID>/plan.md --artifact
+python3 "<scripts>/jira-cli.py" comment <TASK-ID> @<scratchpad md>
 ```
 
-실패 시 로컬 파일 경로 안내 후 계속 진행.
+코멘트:
+```markdown
+## Approval Requested
+- 산출물: <spec·plan | intent | spec | plan> (커밋 <SHA>)
+- PR: <PR URL> (draft)
+- 승인자: <역할> @<login>
+- 원본은 저장소 `work/<TASK-ID>/`, 첨부는 사본입니다.
+```
+첨부 실패는 경고 1줄 후 계속한다.
 
-### Step 5: Completion Summary
+### Step 7: context와 완료 요약
 
-`skills/_shared/context-update.md` 패턴으로 worktree-local + aggregate `.jira-context.json`을 갱신 (approach는 Jira transition 없음 → `STATUS="-"`):
+plan까지 커밋했을 때만(L2, L3 plan) `approach`를 기록한다. L3 intent·spec 단계에서는 기록하지 않는다.
 
 ```bash
 SCRIPT_NAME="jira-context-update.py" OUT_VAR="JIRA_CTX_UPDATE_PY"
@@ -176,19 +136,16 @@ python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> approach "-" \
     "<repoRoot>/.jira-context.json"
 ```
 
-이후 출력:
-
 ```
 ---
-✅ **Approach Complete** — <TASK-ID>
+⏸ **승인 대기** — <TASK-ID> (<L2|L3>)
 
-- 레벨: <L1/L2/L3>
-- 산출물: `docs/approach/<TASK-ID>.approach.md`
-- Jira 코멘트 게시됨
-- Jira 첨부파일 업로드됨 (또는 실패 시 로컬 경로 안내)
+- 산출물: work/<TASK-ID>/<파일> (커밋 <SHA>)
+- PR: <URL> (draft)
+- 승인자: @<login> — PR에 `APPROVE <artifact> <SHA>` 한 줄
 
-**Progress**: init → start → **approach ✓** → impl → test → review → merge → pr → done
+**Progress**: init → start → **approach ⏸** → test-write → impl → verify → pr → done
 
-**Next**: `/jira-task impl <TASK-ID>` — approach 기반으로 구현을 시작합니다
+**Next**: 승인 뒤 `/jira-task test-write <TASK-ID>` (L3 intent·spec 단계면 `/jira-task approach <TASK-ID>`로 다음 산출물)
 ---
 ```

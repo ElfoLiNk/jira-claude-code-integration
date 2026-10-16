@@ -20,7 +20,8 @@ Subcommands (MCP 도구 1:1):
     sprints <BOARD-ID> [active|future|closed]   스프린트 목록
     projects                           프로젝트 목록
     link-types                         링크 타입 목록
-    attach <KEY> <file> [<file>...]    첨부 업로드
+    attach <KEY> <file> [<file>...] [--artifact]   첨부 업로드. --artifact: 이름을 <KEY>.<파일명>으로 올리고,
+                                       본인이 올린 같은 이름의 기존 첨부를 지운다 (산출물 갱신용, v0.70.0)
     download <DIR> <ATTACHMENT-ID>...  첨부 다운로드 → DIR/<filename> (id는 get의 attachments[].id)
 
 Output: 기본 압축 JSON (LLM 소비용 — avatar/self URL/reporter/worklog는 절대 포함하지 않음).
@@ -493,12 +494,23 @@ def cmd_attach(c: Client, a: list[str], opt: dict):
     files = a[1:]
     if not files:
         raise SystemExit("jira-cli: 첨부할 파일 경로 필요")
+    existing = []
+    if opt.get("artifact"):
+        me = c.request("GET", "/rest/api/2/myself").get("accountId")
+        issue = c.request("GET", f"/rest/api/2/issue/{key}", query={"fields": "attachment"})
+        existing = [x for x in (issue.get("fields") or {}).get("attachment") or []
+                    if (x.get("author") or {}).get("accountId") == me]
     results = []
     for path in files:
         boundary = uuid.uuid4().hex
         with open(path, "rb") as f:
             content = f.read()
         name = os.path.basename(path)
+        if opt.get("artifact"):
+            if not name.startswith(f"{key}."):
+                name = f"{key}.{name}"
+            for old in [x for x in existing if x.get("filename") == name]:
+                c.request("DELETE", f"/rest/api/2/attachment/{old['id']}")
         body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\n"
                 f"Content-Type: application/octet-stream\r\n\r\n").encode() + content + f"\r\n--{boundary}--\r\n".encode()
         d = c.request("POST", f"/rest/api/2/issue/{key}/attachments", raw_body=body,
@@ -579,8 +591,8 @@ def parse_argv(argv: list[str]) -> tuple[str, list[str], dict]:
     cmd, positional, opt = argv[0], [], {}
     it = iter(argv[1:])
     for tok in it:
-        if tok == "--raw":
-            opt["raw"] = True
+        if tok in ("--raw", "--artifact"):
+            opt[tok[2:]] = True
         elif tok in ("--fields", "--limit"):
             opt[tok[2:]] = next(it, None)
         elif tok.startswith("--"):

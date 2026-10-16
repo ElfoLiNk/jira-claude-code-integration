@@ -167,6 +167,23 @@ class CommandTest(unittest.TestCase):
         m.cmd_comment(c, ["MAE-1", "## T\n- x"], {})
         self.assertEqual(calls[0][2], {"body": "h2. T\n* x"})
 
+    def test_attach_artifact_prefixes_name_and_replaces_own_old(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "spec.md"
+            f.write_text("x", encoding="utf-8")
+            c, calls = self._client([
+                {"accountId": "me"},
+                {"fields": {"attachment": [
+                    {"id": "1", "filename": "MAE-1.spec.md", "author": {"accountId": "me"}},
+                    {"id": "2", "filename": "MAE-1.spec.md", "author": {"accountId": "other"}},
+                    {"id": "3", "filename": "spec.md", "author": {"accountId": "me"}}]}},
+                {},
+                [{"id": "9"}],
+            ])
+            out = m.cmd_attach(c, ["MAE-1", str(f)], {"artifact": True})
+        self.assertEqual([x[:2] for x in calls[2:3]], [("DELETE", "/rest/api/2/attachment/1")])
+        self.assertEqual(out, [{"file": "MAE-1.spec.md", "id": "9"}])
+
     def test_comment_rejects_approval_token(self):
         c, calls = self._client([])
         with self.assertRaises(SystemExit):
