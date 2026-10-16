@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# append-review-log-wrapper.sh — jira-task-review Step 4.7 wrapper
+# append-review-log-wrapper.sh — jira-task-verify Step 4.7 wrapper
 #
 # Wraps scripts/append-review-log.py with:
-#   - reviewerVersion 산출 (jira-task-review/SKILL.md sha256 prefix 12자)
+#   - reviewerVersion 산출 (jira-task-verify/SKILL.md sha256 prefix 12자)
 #   - SUBAGENT_RESULT_JSON 환경변수 → tmpfile (multi-line/quote 안전)
 #   - cleanup
 #
@@ -20,8 +20,8 @@ LOG_DIR="${2:-docs/review-log}"
 # 스크립트 경로: 자기 자신과 같은 디렉토리의 append-review-log.py
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# reviewerVersion은 플러그인 쪽 review SKILL.md 기준 (사용자 레포에는 이 파일이 없다)
-REVIEW_SKILL="$SCRIPT_DIR/../skills/jira-task-review/SKILL.md"
+# reviewerVersion은 플러그인 쪽 verify SKILL.md 기준 (사용자 레포에는 이 파일이 없다)
+REVIEW_SKILL="$SCRIPT_DIR/../skills/jira-task-verify/SKILL.md"
 if [ -f "$REVIEW_SKILL" ]; then
     REVIEWER_VERSION=$( (sha256sum "$REVIEW_SKILL" 2>/dev/null || shasum -a 256 "$REVIEW_SKILL" 2>/dev/null) | cut -c1-12)
 fi

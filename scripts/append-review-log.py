@@ -14,7 +14,7 @@ Exit codes:
     1  Fatal I/O or invariant failure (SKILL caller uses set+e to stay non-blocking)
 
 Subagent JSON shape:
-    { "result": "Approve"|"Request Changes"|"Needs Discussion",
+    { "result": "검증 통과"|"검증 미통과" (구버전: "Approve"|"Request Changes"|"Needs Discussion"),
       "findings": [{"severity", "file", "line", "category", "message"}, ...], ... }
 """
 
@@ -61,6 +61,8 @@ def main():
         "Approve": "pass",
         "Request Changes": "fail",
         "Needs Discussion": "warn",
+        "검증 통과": "pass",      # v0.70.0 verify 어휘 (에이전트는 승인 어휘를 쓰지 않는다)
+        "검증 미통과": "fail",
     }
     raw_result = raw.get("result", "")
     outcome = OUTCOME_MAP.get(raw_result, "warn")
