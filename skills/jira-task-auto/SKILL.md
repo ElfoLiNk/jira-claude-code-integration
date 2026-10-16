@@ -93,6 +93,7 @@ diff와 검증 결과를 직접 확인한 뒤 `gh pr ready <번호>`로 리뷰�
 
 승인자가 PR에 `APPROVE <plan|intent|spec> <SHA>` 한 줄을 남기면 `/jira-task auto <TASK-ID>`로 이어서 진행합니다.
 ```
+`awaitingKind`가 `answers`면 제목을 `⏸ 답변 대기`로 하고 마지막 줄을 "승인자가 PR의 질문에 답하면 `/jira-task auto <TASK-ID>`가 spec에 반영하고 승인을 요청합니다."로 바꾼다.
 
 **`level_unconfirmed`**: `⏸ 등급이 확정되지 않아 멈췄습니다. /jira-task start <TASK-ID>로 등급을 확정하세요.`
 

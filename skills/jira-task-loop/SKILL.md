@@ -154,7 +154,7 @@ worktree 작업 트리와 Jira는 건드리지 않는다. 같은 run 안에서 �
 
 | auto status | 처리 |
 |---|---|
-| `awaiting_approval` | 리포트 "plan 승인 대기" |
+| `awaiting_approval` | 리포트 "plan 승인 대기" (`awaitingKind=answers`면 같은 칸에 "질문 답변 필요"로) |
 | `completed` | 리포트 "draft 해제 대기" |
 | `level_unconfirmed` | 리포트 "등급 확정 대기" |
 | `scope_shortfall` | 격리 `scope-shortfall` |

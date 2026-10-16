@@ -48,10 +48,12 @@ const STAGE_SCHEMA = {
 
 const APPROACH_SCHEMA = {
   type: 'object',
-  required: [...STAGE_SCHEMA.required, 'awaitingArtifact'],
+  required: [...STAGE_SCHEMA.required, 'awaitingArtifact', 'awaitingKind'],
   properties: {
     ...STAGE_SCHEMA.properties,
     awaitingArtifact: { type: ['string', 'null'], enum: ['intent', 'spec', 'plan', 'spec·plan', null] },
+    // approval: 승인 요청함 / answers: 미결 질문에 답을 기다림 (승인 요청 전)
+    awaitingKind: { type: 'string', enum: ['approval', 'answers'] },
   },
 }
 
@@ -199,6 +201,7 @@ if (level !== 'L1' && !done.has('approach')) {
     'opus',
     skillStagePrompt('approach', [
       `3. 이번 실행이 승인을 요청한 산출물을 awaitingArtifact로 반환하라 (L2 "spec·plan", L3 "intent"|"spec"|"plan"). L3에서 직전 산출물이 아직 승인되지 않아 아무것도 쓰지 않았으면 그 산출물 이름.`,
+      `   승인을 요청했으면 awaitingKind="approval", Skill Step 5-a로 질문만 하고 멈췄거나 답변 대기면 "answers".`,
       `4. draft PR URL을 prUrl로 반환하라.`,
     ].join('\n')),
     'Approach',
@@ -207,8 +210,8 @@ if (level !== 'L1' && !done.has('approach')) {
   if (!g.ok) return abort('approach', g.reason)
   prUrl = g.r.prUrl || prUrl
   if (g.r.completedStepsAfter.includes('approach')) done.add('approach')
-  log(`approach — ${g.r.awaitingArtifact} 승인 대기`)
-  return { status: 'awaiting_approval', artifact: g.r.awaitingArtifact, ...base() }
+  log(`approach — ${g.r.awaitingArtifact} ${g.r.awaitingKind === 'answers' ? '답변' : '승인'} 대기`)
+  return { status: 'awaiting_approval', artifact: g.r.awaitingArtifact, awaitingKind: g.r.awaitingKind, ...base() }
 }
 
 // ---------- 3. test-write — L2·L3는 여기서 sdlc-gate로 plan 승인을 확인한다 ----------
@@ -225,7 +228,7 @@ if (!done.has('test-write')) {
     TEST_WRITE_SCHEMA
   )
   if (g.r && g.r.gateStatus === 'not_approved') {
-    return { status: 'awaiting_approval', artifact: level === 'L2' ? 'spec·plan' : 'plan', gateDetail: g.r.gateDetail || null, ...base() }
+    return { status: 'awaiting_approval', artifact: level === 'L2' ? 'spec·plan' : 'plan', awaitingKind: 'approval', gateDetail: g.r.gateDetail || null, ...base() }
   }
   if (!g.ok) return abort('test-write', g.r && g.r.gateStatus === 'error' ? `승인 확인 오류: ${g.r.gateDetail || g.reason}` : g.reason)
   const miss = requireStep(g, 'test-write')
