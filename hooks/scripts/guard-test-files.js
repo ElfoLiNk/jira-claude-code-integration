@@ -12,6 +12,7 @@
  *   verifier     — every write is denied except work/<KEY>/evidence/
  *   test-writer / none — allowed
  *
+ * apply_patch (Codex): targets come from the patch's file headers.
  * Bash/PowerShell: only explicit write targets are judged (>, >>, tee, sed -i,
  * Set-Content/Add-Content/Out-File). The role file itself is editable by the agent;
  * CI and the review checklist are the final check.
@@ -33,6 +34,7 @@ const TEST_FILE = [
 const EVIDENCE = /(^|\/)work\/[^/]+\/evidence\//;
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const PATCH_TARGET = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
 const SHELL_TARGETS = [
   /(?:^|[^0-9&>])>>?\s*["']?([^\s"';&|<>]+)/g,
   /\btee\s+(?:-a\s+)?["']?([^\s"';&|]+)/g,
@@ -62,6 +64,10 @@ function targets(input, cwd) {
   if (EDIT_TOOLS.has(input.tool_name)) {
     const p = ti.file_path || ti.notebook_path;
     return p ? [rel(cwd, p)] : [];
+  }
+  if (input.tool_name === 'apply_patch') {
+    // Codex: 편집 대상은 패치 본문의 파일 헤더에만 있다
+    return [...(ti.command || '').matchAll(PATCH_TARGET)].map((m) => rel(cwd, m[1].trim()));
   }
   if (input.tool_name !== 'Bash' && input.tool_name !== 'PowerShell') return [];
   const out = [];
