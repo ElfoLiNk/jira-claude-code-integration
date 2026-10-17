@@ -29,12 +29,12 @@ worktree 세션에서 요청받은 경우, 세션을 종료하고 메인 레포�
 이 스킬은 플러그인 내장 스크립트를 사용한다. 스크립트 경로를 찾는 방법:
 
 ```bash
-# 1) CLAUDE_PLUGIN_ROOT가 있으면 (스킬 실행 컨텍스트의 정확한 버전) 그것을 사용
+# 1) 지금 로드된 플러그인 (아래 변수 표기는 스킬 로드 시 실제 경로로 치환된다)
 # 2) 없으면 cwd 기준 직접 설치 경로
 # 3) 그래도 없으면 캐시에서 최신 semver 버전 선택 (sort -V | tail -1)
 SCRIPT=""
-if [ -n "$CLAUDE_PLUGIN_ROOT" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/clean-worktree.py" ]; then
-  SCRIPT="$CLAUDE_PLUGIN_ROOT/scripts/clean-worktree.py"
+if [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/clean-worktree.py" ]; then
+  SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/clean-worktree.py"
 elif [ -f "scripts/clean-worktree.py" ]; then
   SCRIPT="scripts/clean-worktree.py"
 else

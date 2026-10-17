@@ -87,9 +87,9 @@ bash "${CTRL_SH}" "${ACTION}"
    - `start`, `stop`, `status`, `setup` 중 하나이면 그대로 사용
    - 그 외이면 usage를 출력하고 종료
 
-2. `CLAUDE_PLUGIN_ROOT` 환경변수를 Bash에서 확인한다:
+2. 플러그인 루트를 확인한다(아래 변수 표기는 스킬 로드 시 실제 경로로 치환된다):
    ```bash
-   echo "${CLAUDE_PLUGIN_ROOT:-}"
+   echo "${CLAUDE_PLUGIN_ROOT}"
    ```
    비어 있으면 사용자에게 "Claude Code 플러그인 컨텍스트에서 실행하세요." 안내.
 

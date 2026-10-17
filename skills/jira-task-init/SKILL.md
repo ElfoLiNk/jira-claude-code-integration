@@ -221,7 +221,7 @@ python3 "<scripts>/jira-cli.py" comment <TASK-ID> "브랜치 \`feature/<TASK-ID>
 workspace registry에 등록한다. (idempotent — 이미 등록돼 있으면 lastSeenAt만 갱신.)
 
 ```bash
-node "$CLAUDE_PLUGIN_ROOT/scripts/register-workspace.js" "$REPO_ROOT"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/register-workspace.js" "$REPO_ROOT"
 ```
 
 실패해도 워크플로는 진행 (등록은 dashboard 가시성에만 영향).
