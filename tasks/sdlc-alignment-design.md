@@ -247,4 +247,8 @@ mock Jira·가짜 gh 샌드박스에서 DEMO-1(L1)을 끝까지, DEMO-2(L2, 위�
 
 브랜치 플러그인을 `claude -p --plugin-dir`로 실제 로드해 auto(Workflow)·loop 4패스·L3·fix 루프·stacked·Mode A verify를 돌렸다(DEMO-3 L3, DEMO-4 L1, DEMO-5 L2 stacked). 확인: L3 intent→spec→plan 승인 3회 후 build, 미결 질문 경로(답 → spec 결정 사항 → 승인 요청), fix 루프 1회 수렴, sync의 done·stacked 해제·base-conflict 격리, Mode A의 jira-reviewer(opus) 위임. 고친 것: triage(AC가 적은 작업도 fix 루프), 승인을 산출물 내용 기준으로(stacked rebase 후 승인 거부), EnterWorktree 안 run-log 기록 차단, review-log 단계 생략·래퍼 경로·심각도 매핑, delta 재검증의 PR 본문 미갱신.
 
-남은 제약: headless(-p)에서는 모델이 턴을 끝내면 백그라운드 Workflow가 같이 끊긴다(대화형은 완료 알림이 다시 깨운다). 3단계 runner 설계의 전제 조건이다.
+headless의 Workflow 중단: `-p`는 턴이 끝난 뒤에도 백그라운드 작업과 완료 알림을 기다리지만, 셸이 아닌 작업(Workflow·서브에이전트)은 마지막 턴 뒤 `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`(기본 600000)가 지나면 멈춘다. 끊긴 실행의 stderr에 그 안내가 남아 있었다. `=0`이면 상한 없이 기다린다. 프로세스 환경변수로만 적용되고 settings `env`로는 적용되지 않는다(15초 상한으로 비교 실측). README "headless 실행"에 적었고, 3단계 runner는 이 변수를 설정해 띄운다. `=0`으로 다시 돌린 build에서 DEMO-7 Workflow는 턴 종료 후 10분 27초 만에 완료 알림을 받아 끝까지 진행했다.
+
+SHA가 바뀌는 재정렬: 가짜 gh의 머지를 GitHub처럼 항상 커밋을 새로 쓰게(`--force-rebase`) 바꾸고 DEMO-6(L1) ← DEMO-7(L1, is blocked by) stacked로 build → DEMO-6 머지(`de32043`→`2c3f722`) → `loop sync`를 headless로 돌렸다. sync가 `rebase --onto origin/main <stackedOn.sha>`로 DEMO-7에 자기 커밋 2개만 남기고 force push, PR base를 main으로, test 커밋 SHA를 새 값으로 기록, 테스트 통과까지 확인했다. 이 실행에서 모델이 `$(pwd)`로 만든 MSYS 경로(`/tmp/...`)를 Windows Python이 열지 못해 context 갱신이 한 번 실패했으므로 `jira-context-update.py`가 MSYS 경로를 받아들이게 했다.
+
+스크립트 lookup: Bash 도구에는 `CLAUDE_PLUGIN_ROOT` 환경변수가 없다(hook·MCP에만 주입). SKILL.md 본문의 `${CLAUDE_PLUGIN_ROOT}`는 로드 시점에 문자열로 치환되지만 공용 `script-lookup.md`는 Read로 읽으므로 치환되지 않아 캐시 검색으로 떨어졌고, `--plugin-dir` 개발본에서 구버전 캐시를 잡았다. lookup 첫 후보를 `PLUGIN_ROOT`(이 파일을 Read한 경로의 루트)로 바꾸고, clean·init·dashboard의 `$CLAUDE_PLUGIN_ROOT`는 치환되는 `${CLAUDE_PLUGIN_ROOT}` 표기로 바꿨다.

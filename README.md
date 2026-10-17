@@ -364,6 +364,16 @@ python3 <plugin>/scripts/ensure-workflow-dir.py    # ~/.claude/settings.json의 
 
 버전 디렉터리의 부모(`…/cache/<marketplace>/jira-integration`)를 등록하므로 플러그인을 업데이트해도 다시 할 필요가 없습니다. 등록은 **새 세션부터** 적용됩니다 — 지금 세션에서 바로 쓰려면 `/add-dir <출력된 dir>`.
 
+### headless 실행 (`claude -p`)
+
+`auto`·`loop`를 `claude -p`로 돌릴 때는 `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`을 함께 설정합니다. `-p`는 턴이 끝난 뒤에도 백그라운드 작업을 기다리지만, Workflow처럼 셸이 아닌 작업은 마지막 턴 뒤 10분(기본 600000)이 지나면 멈춥니다. `auto`의 Workflow는 태스크 하나로도 10분을 넘기기 쉽고, 끊기면 그 단계의 context 기록이 남지 않습니다.
+
+```bash
+CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p "/jira-task loop"
+```
+
+0은 상한 없이 기다린다는 뜻입니다. 프로세스 환경변수로 줘야 합니다 — `settings.json`의 `env`로 넣으면 이 값은 적용되지 않습니다(실측).
+
 ### 보호 hook (기본 활성)
 
 | hook | 막는 것 |
