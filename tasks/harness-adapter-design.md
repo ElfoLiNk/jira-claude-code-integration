@@ -82,6 +82,14 @@ Codex 실행(`codex exec`)은 사용자 Codex 계정으로 과금된다. 샌드�
 3. L1 한 건을 start → test-write → impl(새 세션) → verify(새 세션) → pr까지.
 4. L2 한 건의 approach → 승인 → build.
 
+### 4.1 실측 결과 (2026-10-17, 사용자 Codex, `--dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust`, mock Jira + 가짜 gh)
+
+- L1 DEMO-8: start(L1 확정·라벨·전이) → test-write(실패 테스트 커밋) → impl(구현 커밋, draft PR, 본문 "작성: Codex") → verify(self-mode, AC 2/2, 서명 `harness: Codex`) → pr(검토 중 전이) → 사람 머지 → done(완료 전이, 큐 제거). 단계마다 새 `codex exec` 세션.
+- 테스트 보호: `activeRole=implementer`에서 `apply_patch`로 테스트 파일 수정 → hook 차단, 파일 불변.
+- L2 DEMO-9: start가 L3를 제안하자 확정하지 않고 멈춤, approach는 등급 미확정으로 거부 → 담당자가 L2 확정 → approach가 질문 2건을 PR에 남기고 멈춤 → 답 반영(결정 사항 + 근거 링크) → 승인 요청 → 권한 없는 @po-park 승인은 `sdlc-gate.py`가 거부 → @lead-lee 승인 후 test-write → impl → verify(AC 7/7).
+- 발견·수정: 기존 Codex 이식본(v0.62)이 함께 설치돼 있어 Codex가 같은 이름의 옛 스킬을 먼저 읽음 → 이식본 제거. verify가 오래된 로컬 `main`과 비교해 다른 작업 커밋을 범위 밖 변경으로 보고 → `agents/jira-reviewer.md`가 `origin/<Base>`를 쓰게(harness 무관 결함).
+- 미확인: 대화형 TUI의 hook trust(`/hooks`)와 권한 상승 승인 흐름(사람이 직접 해야 함).
+
 ## 5. 구현 순서
 
 1. 중립화: task-id·ask-user 공용 문서, CLAUDE.md 참조 정리, 작성 도구 동적화, scratchpad 정의, lookup 통일

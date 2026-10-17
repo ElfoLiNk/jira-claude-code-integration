@@ -32,7 +32,10 @@ tools:
 ## 절차
 
 ### 1. 변경 확인
+
+`<base>`는 원격 브랜치다. 입력 `Base`가 `main`이면 `origin/main`을 쓴다 — 로컬 `main`은 오래됐을 수 있어 다른 작업의 커밋까지 diff에 섞인다.
 ```bash
+git fetch -q origin <Base>
 git log --oneline <base>..HEAD
 git diff --name-only <base>..HEAD
 ```
