@@ -67,6 +67,9 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
 
 
@@ -254,7 +257,20 @@ def prune_done(ctx_file: str) -> str:
     return f"pruned {len(pruned)} done task(s) [{', '.join(str(p) for p in pruned)}]: {ctx_file}"
 
 
+def _native_path(p: str) -> str:
+    """Git Bash의 `$(pwd)`가 주는 MSYS 경로(`/c/...`, `/tmp/...`)를 Windows Python이 여는 경로로 바꾼다."""
+    if os.name != "nt" or not p.startswith("/"):
+        return p
+    if shutil.which("cygpath"):
+        r = subprocess.run(["cygpath", "-m", p], capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    m = re.match(r"^/([a-zA-Z])(/.*)?$", p)
+    return f"{m.group(1).upper()}:{m.group(2) or '/'}" if m else p
+
+
 def main(argv: list[str]) -> int:
+    argv = [_native_path(a) for a in argv]
     if len(argv) >= 3 and argv[1] == "--prune-done":
         for ctx_file in argv[2:]:
             print(prune_done(ctx_file))
