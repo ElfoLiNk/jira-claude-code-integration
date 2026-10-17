@@ -13,7 +13,7 @@ allowed-tools:
 
 # jira-task-init: Bulk Sprint/Task Initialization
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
 나에게 할당된 Jira 태스크를 우선순위 순으로 가져와서 각각 git worktree를 생성하고
 작업 컨텍스트를 세팅하는 일괄 처리 워크플로우.

@@ -18,10 +18,11 @@ OUT_VAR="<출력 변수명>"
 # 0) PLUGIN_ROOT  1) CLAUDE_PLUGIN_ROOT  2) cwd  3) repoRoot(.jira-context.json)  4) 플러그인 캐시 최신 semver
 # 캐시 fallback은 반드시 sort -V | tail -1로 최신 버전 선택. find ... | head -1은 stale 버전을 잡으므로 금지.
 _resolved=""
-for _c in "${PLUGIN_ROOT}/scripts/${SCRIPT_NAME}"           "${CLAUDE_PLUGIN_ROOT}/scripts/${SCRIPT_NAME}" \
+for _c in "${PLUGIN_ROOT}/scripts/${SCRIPT_NAME}" \
+          "${CLAUDE_PLUGIN_ROOT}/scripts/${SCRIPT_NAME}" \
           "scripts/${SCRIPT_NAME}" \
           "$(node -e "try{console.log(require('./.jira-context.json').repoRoot)}catch{}" 2>/dev/null)/scripts/${SCRIPT_NAME}" \
-          "$(find "$HOME/.claude" -name "${SCRIPT_NAME}" -type f 2>/dev/null | sort -V | tail -1)"; do
+          "$(find "$HOME/.claude" "${CODEX_HOME:-$HOME/.codex}/plugins/cache" -path "*jira-integration*" -name "${SCRIPT_NAME}" -type f 2>/dev/null | sort -V | tail -1)"; do
   [ -n "$_c" ] && [ -f "$_c" ] && _resolved="$_c" && break
 done
 printf -v "$OUT_VAR" '%s' "$_resolved"
@@ -44,7 +45,7 @@ for _n in $SCRIPT_NAMES; do
   elif [ -n "$CLAUDE_PLUGIN_ROOT" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/${_n}" ]; then _r="${CLAUDE_PLUGIN_ROOT}/scripts/${_n}"
   elif [ -f "scripts/${_n}" ]; then _r="scripts/${_n}"
   elif [ -n "$_repo_root" ] && [ -f "${_repo_root}/scripts/${_n}" ]; then _r="${_repo_root}/scripts/${_n}"
-  else _r=$(find "$HOME/.claude" -name "${_n}" -type f 2>/dev/null | sort -V | tail -1)
+  else _r=$(find "$HOME/.claude" "${CODEX_HOME:-$HOME/.codex}/plugins/cache" -path "*jira-integration*" -name "${_n}" -type f 2>/dev/null | sort -V | tail -1)
   fi
   echo "RESOLVED ${_n}=${_r:-NOT_FOUND}"
 done
@@ -59,7 +60,7 @@ Bash 호출 간 변수는 유지되지 않으므로, 호출자는 `RESOLVED` 출
 1. **`CLAUDE_PLUGIN_ROOT`** — 환경변수가 주입된 실행 환경(hook 등)용.
 2. **cwd `scripts/`** — 메인 레포에서 실행 중인 경우.
 3. **`.jira-context.json`의 `repoRoot`** — 워크트리에서 실행 중일 때 메인 레포 경로 복원.
-4. **플러그인 캐시 최신 semver** — `~/.claude/plugins/cache/.../scripts/`. `sort -V | tail -1`로 최신 선택. `head -1`은 stale 버전을 잡으므로 금지. `--plugin-dir`로 개발본을 로드하면 캐시는 설치본이라 버전이 어긋나므로 0번이 비면 안 된다.
+4. **플러그인 캐시 최신 semver** — `~/.claude/plugins/cache/.../scripts/` 또는 Codex 설치본 `${CODEX_HOME:-~/.codex}/plugins/cache/.../jira-integration/<ver>/scripts/`. 경로에 `jira-integration`이 들어간 것만 본다(다른 플러그인의 같은 이름 파일 배제). `sort -V | tail -1`로 최신 선택. `head -1`은 stale 버전을 잡으므로 금지. `--plugin-dir`로 개발본을 로드하면 캐시는 설치본이라 버전이 어긋나므로 0번이 비면 안 된다.
 
 ## 신규 스크립트 추가
 

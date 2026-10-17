@@ -14,7 +14,7 @@ allowed-tools:
 
 # jira-task-approach: 산출물 작성과 승인 요청
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Overview
 
@@ -49,7 +49,7 @@ L2·L3 작업의 산출물을 `work/<TASK-ID>/`에 쓰고 커밋한 뒤 draft PR
 
 ### Step 1: Cache-First Fetch
 
-context `cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그대로 쓴다(CLAUDE.md "Cache-First Fetch"). 아니면:
+context `cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그대로 쓴다(`skills/_shared/conventions.md` "Cache-First Fetch"). 아니면:
 ```bash
 python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks > "<scratchpad>/<TASK-ID>.issue.json"
 python3 "$JIRA_CTX_UPDATE_PY" <TASK-ID> - - "<worktree>/.jira-context.json" --cache-issue "<scratchpad>/<TASK-ID>.issue.json"

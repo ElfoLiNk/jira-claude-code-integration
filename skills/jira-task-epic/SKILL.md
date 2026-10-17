@@ -12,7 +12,9 @@ allowed-tools:
 
 # jira-task-epic: Project Epic Scope
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력). 이슈 키·필드명·JSON 키는 영어 유지.
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력). 이슈 키·필드명·JSON 키는 영어 유지.
+
+**질문**: `AskUserQuestion`이 없는 harness에서는 `skills/_shared/conventions.md` "harness 차이"대로 텍스트로 묻고 답을 기다린다.
 
 ## Overview
 
@@ -78,7 +80,7 @@ rm -f "$EPIC_FILE"
 python3 "<scripts>/jira-cli.py" search "project = <PROJECT_KEY> AND issuetype = Epic AND summary ~ \"<입력값>\" ORDER BY created DESC" --limit 20
 ```
 
-`<PROJECT_KEY>`는 `JIRA_DEFAULT_PROJECT` 환경변수. **`JIRA_DEFAULT_PROJECT`가 있으면 `project` 조건은 CLI가 자동 삽입한다** (CLAUDE.md의 스코핑 규칙). 없으면 사용자에게 프로젝트 키를 묻고 JQL에 직접 넣는다.
+`<PROJECT_KEY>`는 `JIRA_DEFAULT_PROJECT` 환경변수. **`JIRA_DEFAULT_PROJECT`가 있으면 `project` 조건은 CLI가 자동 삽입한다** (`skills/_shared/conventions.md`의 스코핑 규칙). 없으면 사용자에게 프로젝트 키를 묻고 JQL에 직접 넣는다.
 
 - 0건 → Step 5의 **N0** 처리
 - 1건 → 확정

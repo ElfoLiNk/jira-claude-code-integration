@@ -11,7 +11,9 @@ allowed-tools:
 
 # jira-setup: Workspace Jira Setup Wizard
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력).
+
+**질문**: `AskUserQuestion`이 없는 harness에서는 `skills/_shared/conventions.md` "harness 차이"대로 텍스트로 묻고 답을 기다린다.
 
 ## Overview
 

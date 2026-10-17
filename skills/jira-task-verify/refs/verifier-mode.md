@@ -7,7 +7,9 @@
 ### Mode A: Subagent 위임 (사용자가 main 세션에서 직접 호출)
 
 **조건**: `[verify-self-mode]` 마커가 없다.
-**동작**: `Agent` 도구로 `subagent_type: "jira-reviewer"`, `model: "opus"`(L1은 `"sonnet"`)를 명시해 아래 prompt로 위임한다. main 세션은 Step 3 이후(증거 저장·PR·Jira)만 한다. `Agent` 도구가 없으면 에러로 멈추고 `[verify-self-mode]` 마커 누락을 알린다 — main 세션이 직접 검증하지 않는다.
+**동작**: `Agent` 도구로 `subagent_type: "jira-reviewer"`, `model: "opus"`(L1은 `"sonnet"`)를 명시해 아래 prompt로 위임한다. main 세션은 Step 3 이후(증거 저장·PR·Jira)만 한다.
+
+`Agent` 도구가 없는 harness(Codex 등)에서는 사람이 verify를 새 세션으로 실행한 것이 곧 분리된 세션이다. 이 세션에서 이 태스크의 test-write·impl을 하지 않았으면 Mode B로 진행한다. 했으면 검증하지 말고 "새 세션을 열어 verify를 다시 실행하세요"라고 안내하고 멈춘다. Claude Code에서 Agent 호출이 실패하면 main 세션이 직접 검증하지 않고 멈춘다.
 
 ### Mode B: Self-Mode (이미 분리된 wrapper에서 호출)
 

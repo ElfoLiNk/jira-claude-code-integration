@@ -13,7 +13,7 @@ allowed-tools:
 
 # jira-task-start: Start Working on a Jira Task
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Prerequisites
 - Jira 자격증명 설정됨 (`/jira`로 확인, `skills/_shared/jira-cli.md`)
@@ -36,7 +36,7 @@ cwd에서 `.jira-context.json`을 `Read`로 읽어보고 아래로 분기 — **
 
 ### Step 1: Fetch Issue Details (cache-first)
 
-`cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그 값을 쓴다 (CLAUDE.md "Cache-First Fetch"). 아니면 조회한다:
+`cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그 값을 쓴다 (`skills/_shared/conventions.md` "Cache-First Fetch"). 아니면 조회한다:
 
 ```bash
 python3 "<scripts>/jira-cli.py" get <TASK-ID> --fields subtasks,issuelinks > "<scratchpad>/<TASK-ID>.issue.json"

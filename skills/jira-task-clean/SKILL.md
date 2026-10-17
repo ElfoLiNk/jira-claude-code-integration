@@ -10,7 +10,7 @@ allowed-tools:
 
 # jira-task-clean: Worktree & Branch Cleanup
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력).
 
 ## Overview
 
@@ -38,7 +38,7 @@ if [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/clean-worktree.py" ]; then
 elif [ -f "scripts/clean-worktree.py" ]; then
   SCRIPT="scripts/clean-worktree.py"
 else
-  SCRIPT=$(find ~/.claude/plugins -path "*/jira-integration/*/scripts/clean-worktree.py" 2>/dev/null | sort -V | tail -1)
+  SCRIPT=$(find ~/.claude/plugins "${CODEX_HOME:-$HOME/.codex}/plugins/cache" -path "*/jira-integration/*/scripts/clean-worktree.py" 2>/dev/null | sort -V | tail -1)
 fi
 [ -z "$SCRIPT" ] && { echo "clean-worktree.py를 찾을 수 없습니다." >&2; exit 1; }
 ```

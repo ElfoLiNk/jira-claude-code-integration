@@ -11,7 +11,9 @@ allowed-tools:
 
 # jira-task-create: Create New Jira Issue (with Sub-tasks & Dependencies)
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력). 추가: `AskUserQuestion` 질문/선택지, 생성 이슈 본문(summary/description)도 한국어. 이슈 키, 필드명(priority/labels), JSON 키는 영어 유지.
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력). 추가: `AskUserQuestion` 질문/선택지, 생성 이슈 본문(summary/description)도 한국어. 이슈 키, 필드명(priority/labels), JSON 키는 영어 유지.
+
+**질문**: `AskUserQuestion`이 없는 harness에서는 `skills/_shared/conventions.md` "harness 차이"대로 텍스트로 묻고 답을 기다린다.
 
 **Jira 호출**: `Read skills/_shared/jira-cli.md` — 모든 Jira 호출은 `python3 "<scripts>/jira-cli.py" …` Bash 호출. 호출 prompt가 `<scripts>/` 절대 경로를 줬으면 그대로, 없으면 `skills/_shared/script-lookup.md`로 `SCRIPT_NAME="jira-cli.py"` 1회 해석.
 

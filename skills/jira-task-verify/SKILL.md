@@ -12,7 +12,7 @@ allowed-tools:
 
 # jira-task-verify: 수용 조건별 검증
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Overview
 
@@ -80,7 +80,7 @@ set -e
    - PR: <URL> (draft)
 
    ---
-   Verified by jira-reviewer <subagent | self-mode> (model: <정식 모델 ID>)
+   Verified by jira-reviewer <subagent | self-mode> (harness: <실행 중인 harness>, model: <정식 모델 ID>)
    ```
    끝의 서명 줄은 review-log 분석이 검증 주체를 식별하는 데 쓴다. Mode A는 `subagent`, Mode B(`[verify-self-mode]`)는 `self-mode`.
 

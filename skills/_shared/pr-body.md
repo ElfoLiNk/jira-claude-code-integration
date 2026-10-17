@@ -11,7 +11,7 @@
 
 1. 프로젝트에 `.github/pull_request_template.md`가 있으면 그것, 없으면 플러그인 `templates/sdlc/pull_request_template.md`를 Read한다. HTML 주석은 지우고 절 제목과 순서는 그대로 둔다.
 2. 채우는 값:
-   - **작업**: 이슈 키(Jira 링크 — `python3 "<scripts>/jira-cli.py" config show`의 `url` + `/browse/<KEY>`), 등급, 위험 신호(context `riskSignals`), 산출물 `work/<KEY>/`(L2·L3), 산출물 승인 기록(승인 전 "대기", 확인 후 `sdlc-gate.py check` 출력의 `url`·`approver`·`sha`), 작성 `Claude Code` / 작업 담당자 `@<gh api user -q .login>`.
+   - **작업**: 이슈 키(Jira 링크 — `python3 "<scripts>/jira-cli.py" config show`의 `url` + `/browse/<KEY>`), 등급, 위험 신호(context `riskSignals`), 산출물 `work/<KEY>/`(L2·L3), 산출물 승인 기록(승인 전 "대기", 확인 후 `sdlc-gate.py check` 출력의 `url`·`approver`·`sha`), 작성 `<실행 중인 harness — conventions.md "harness 차이">` / 작업 담당자 `@<gh api user -q .login>`.
    - stacked면 작업 절 끝에 한 줄: `이 PR은 #<앞 PR 번호>(<앞 KEY>) 위에 쌓여 있습니다. 앞 PR이 머지되면 base를 <base>로 옮깁니다.`
    - **변경 내용**: L1은 무엇을 왜 바꾸는지 3~5줄(L1의 계획을 대신한다). L2·L3는 spec 요약 2~3줄 + `work/<KEY>/` 링크.
    - **검증**: verify 전에는 "검증 전". verify 뒤 L1은 실행한 검사 명령과 결과, L2·L3는 `work/<KEY>/evidence/verification.md` 링크와 AC 판정 요약.

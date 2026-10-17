@@ -98,5 +98,5 @@ Lint: <도구> <결과> (impl self-check 인용 | 직접 실행 | 선언된 도�
 ### Info
 
 ---
-Verified by jira-reviewer <subagent | self-mode> (model: <정식 모델 ID>)
+Verified by jira-reviewer <subagent | self-mode> (harness: <실행 중인 harness>, model: <정식 모델 ID>)
 ```

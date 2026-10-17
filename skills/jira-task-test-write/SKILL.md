@@ -14,7 +14,7 @@ allowed-tools:
 
 # jira-task-test-write: 실패 테스트 먼저 커밋
 
-**Language Rule**: 프로젝트 CLAUDE.md의 Conventions 섹션 참고 (한국어 출력, Jira 코멘트 제목은 영어).
+**공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
 ## Overview
 

@@ -30,13 +30,7 @@ If no action is provided, show the help text (same as `/jira` command).
 
 ## TASK-ID Auto-Detection
 
-When TASK-ID is not provided, detect it automatically in the following priority order:
-
-1. **Git branch name**: Run `git branch --show-current`. If the branch matches `feature/<TASK-ID>`, extract the TASK-ID.
-2. **Current directory name**: Check if the current directory name matches a Jira issue key pattern (`[A-Z]+-\d+`, e.g., `PROJ-123`).
-3. **`.jira-context.json`**: Read the file and use the active task ID if present.
-
-If auto-detection succeeds, proceed with the detected TASK-ID. If it fails and the action requires a TASK-ID, ask the user to provide it.
+When TASK-ID is not provided, detect it as `skills/_shared/conventions.md` "TASK-ID" describes (branch → directory name → `.jira-context.json`). If it fails and the action requires a TASK-ID, ask the user to provide it.
 
 ## Action Routing
 
