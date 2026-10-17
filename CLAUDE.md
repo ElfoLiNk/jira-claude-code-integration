@@ -69,6 +69,8 @@ atlassian MCP 서버는 **선택**(`/jira setup --mcp`, 대화 중 ad-hoc 질의
 
 - **산출물(spec·plan 등)에 코드 스니펫 금지** (토큰 낭비).
 
+- **harness 중립 (v0.71.0)**: 같은 원본을 Codex에도 설치한다(`tasks/harness-adapter-design.md`). 스킬은 첫 줄에서 `skills/_shared/conventions.md`(언어, TASK-ID 감지, Cache-First, harness 차이)를 읽는다. harness마다 다른 동작(질문 도구, scratchpad, 다음 단계 안내 문법, 작성 도구 기록, auto·loop 지원)은 그 표에만 쓰고 스킬을 harness별로 나누지 않는다. SKILL.md 본문의 `${CLAUDE_PLUGIN_ROOT}`는 Claude Code에서만 치환되므로 스크립트 경로는 `script-lookup.md`의 `PLUGIN_ROOT`로 찾는다. guard hook은 Codex 입력(`Bash`에 PowerShell 명령, 편집은 `apply_patch` 패치 본문)도 판정한다.
+
 ## JIRA_DEFAULT_PROJECT Scoping Rule
 
 `JIRA_DEFAULT_PROJECT` 환경변수가 설정되어 있으면 **모든 JQL에 `project = <JIRA_DEFAULT_PROJECT>` 조건을 반드시 포함**. 스프린트/에픽 하위/관련 이슈 검색 등 예외 없음. init/report 등 JQL 쓰는 모든 스킬에 적용 (mcp-atlassian의 `JIRA_PROJECTS_FILTER`와 별개의 플러그인 자체 규칙).

@@ -47,6 +47,8 @@ claude plugin marketplace add mzd-hseokkim/jira-claude-code-integration
 claude plugin install jira-integration@jira-claude-code-integration
 ```
 
+Codex에서 쓰려면 [Codex에서 쓰기](#codex에서-쓰기)를 보세요.
+
 ### Jira 연결
 
 프로젝트 루트에서 Claude Code를 열고:
@@ -363,6 +365,28 @@ python3 <plugin>/scripts/ensure-workflow-dir.py    # ~/.claude/settings.json의 
 ```
 
 버전 디렉터리의 부모(`…/cache/<marketplace>/jira-integration`)를 등록하므로 플러그인을 업데이트해도 다시 할 필요가 없습니다. 등록은 **새 세션부터** 적용됩니다 — 지금 세션에서 바로 쓰려면 `/add-dir <출력된 dir>`.
+
+### Codex에서 쓰기
+
+같은 플러그인을 Codex CLI에도 설치할 수 있습니다. 단계 명령은 같고, auto·loop·대시보드는 Claude Code 전용입니다.
+
+```bash
+codex plugin marketplace add https://github.com/mzd-hseokkim/jira-claude-code-integration
+codex plugin add jira-integration@jira-claude-code-integration
+```
+
+로컬 경로로 마켓플레이스를 추가하면 작업 트리를 통째로 복사하므로 gitignore된 `.jira-context.json`(API 토큰)까지 Codex 캐시에 들어갑니다. git 주소로 추가하세요.
+
+**보호 hook 신뢰.** Codex는 플러그인 hook을 신뢰하기 전에는 실행하지 않습니다. 설치 후 Codex에서 `/hooks`를 열어 jira-integration의 hook을 trust합니다. 그 전에는 승인 토큰 차단, 구현 세션의 테스트 수정 차단, worktree 직접 삭제 차단이 모두 꺼진 상태입니다.
+
+**권한.** 단계마다 git commit·worktree·push와 Jira·GitHub 호출을 합니다. Codex 기본 샌드박스(workspace-write)는 `.git` 쓰기를 막고(쓰기 경로에 추가해도 막힘), 레포 밖 형제 worktree 쓰기와 네트워크도 막습니다. 둘 중 하나로 씁니다.
+
+- 대화형으로 실행하고, git·gh·worktree 명령의 권한 상승 요청을 그때그때 승인한다.
+- `codex --sandbox danger-full-access`로 실행한다. 보호 hook은 샌드박스와 별개로 계속 동작합니다.
+
+Windows에서 `[windows] sandbox = "elevated"`가 초기 설정에 실패하면(`setup refresh had errors`) 셸과 파일 쓰기가 모두 거부됩니다. 이때는 Codex를 대화형으로 한 번 실행해 설정을 마치거나 `"unelevated"`로 바꿉니다.
+
+**사용.** 단계 스킬을 직접 부릅니다. 예: `$jira-task-start MAE-101`. TASK-ID를 빼면 브랜치(`feature/<KEY>`)에서 찾습니다. 표준의 세션 분리를 지키려면 **test-write, impl, verify는 각각 새 Codex 세션**에서 실행합니다. verify는 같은 세션에서 구현했으면 검증하지 않고 새 세션을 요구합니다.
 
 ### headless 실행 (`claude -p`)
 

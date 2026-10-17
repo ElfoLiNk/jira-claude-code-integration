@@ -39,7 +39,8 @@ Codex에서는 사용자가 단계 스킬을 직접 부른다(`$jira-task-start 
 
 - matcher에 Codex 이름을 더한다: 셸 `Bash`(이미 있음), 편집 `apply_patch`.
 - `guard-test-files.js`: `tool_name === "apply_patch"`이면 `tool_input.command`의 `*** Add File:` / `*** Update File:` / `*** Delete File:` / `*** Move to:` 줄에서 경로를 뽑아 기존 판정에 넣는다.
-- `guard-approval.js`, `guard-worktree-remove.js`: Codex도 셸을 `Bash` + `tool_input.command`로 주므로 그대로 동작할 것으로 본다 — 실측으로 확인.
+- `guard-approval.js`, `guard-worktree-remove.js`: Codex도 셸을 `Bash` + `tool_input.command`로 준다. 실측: `gh pr comment 1 --body "APPROVE plan abc1234"`가 플러그인 hook으로 차단됐다(설치한 레포 그대로, `--dangerously-bypass-hook-trust`). Windows에서 Codex의 `Bash`는 PowerShell 명령을 담는다(`Set-Content` 등 기존 PowerShell 판정이 그대로 쓰인다).
+- 실측한 hook 입력 키: `cwd, hook_event_name, model, permission_mode, session_id, tool_input, tool_name, tool_use_id, transcript_path, turn_id`. 편집은 `tool_name: "apply_patch"`, `tool_input.command`가 `*** Begin Patch … *** Update File: <경로> …` 본문(경로는 상대 또는 절대).
 - 차단 출력은 지금 쓰는 `hookSpecificOutput.permissionDecision: "deny"`가 Codex에서도 지원된다.
 - trust: README Codex 절에 "설치 후 `/hooks`에서 jira-integration hook을 trust" 단계를 넣는다. trust 전에는 표준 통제(승인 토큰 차단, 테스트 보호)가 꺼진 상태이므로, 단계 스킬이 시작할 때 hook 동작 여부를 알 수 없다는 점을 문서에 분명히 한다.
 
@@ -60,9 +61,17 @@ Codex에서는 사용자가 **새 Codex 세션**을 열어 verify를 실행하�
 
 플러그인 동작에 필요한 것: Jira REST·`gh`·`git fetch/push`(네트워크), `git commit`·`worktree add`(`.git` 쓰기), 형제 worktree 쓰기. README Codex 절에 권장 설정을 둔다.
 
-- 레포 단위 `.codex/config.toml`에 `sandbox_mode = "workspace-write"`, `[sandbox_workspace_write] network_access = true`, `writable_roots = ["<상위>/<project>_worktree", "<메인 레포>/.git"]`.
-- 또는 세션마다 승인 요청에 응답한다(번거롭지만 기본값).
-- 실측 전에는 이 설정으로 `.git` 쓰기가 풀리는지 확정하지 않는다.
+실측(2026-10-17, Windows, codex-cli 0.162.1):
+
+- `windows.sandbox = "elevated"`는 비대화형 `codex exec`에서 초기 설정이 실패해(`helper_unknown_error: setup refresh had errors`) 모든 셸·파일 쓰기가 거부됐다. `"unelevated"`에서는 동작한다.
+- workspace-write에서 `.git`은 `writable_roots`에 넣어도 쓰기 불가(`index.lock: Permission denied`) → `git commit`·`worktree add`·브랜치 생성이 샌드박스 안에서는 안 된다. 레포 밖 형제 worktree도 쓰기 불가.
+- `network_access = true`면 Python HTTP(jira-cli)는 된다. `curl.exe`는 샌드박스 사용자 자격 문제(schannel)로 실패.
+- 프로젝트 `.codex/rules`의 `prefix_rule(["git"])`은 적용되지 않았고, 사용자 rules 파일의 패턴은 `pwsh.exe -Command "<명령 전체>"` 단위라 접두어 허용이 사실상 안 된다.
+
+결론: 이 플러그인은 단계마다 커밋하므로 샌드박스 안에서는 돌 수 없다. README Codex 절의 안내:
+
+- 대화형 TUI: 기본 승인 모드로 쓰고, git·gh·worktree 명령의 권한 상승 요청을 승인한다.
+- 또는 `--sandbox danger-full-access`(워크트리·`.git`·네트워크 전부 허용)로 실행한다. 보호 hook(승인 토큰·테스트 보호·worktree 삭제)은 샌드박스와 별개로 계속 동작한다.
 
 ## 4. 확인할 것 (실측)
 
