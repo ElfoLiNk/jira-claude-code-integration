@@ -1,13 +1,15 @@
 # jira-integration · Claude Code Plugin
 
-[![Version](https://img.shields.io/badge/version-0.70.0-blue)](.claude-plugin/plugin.json)
+[![Version](https://img.shields.io/badge/version-0.71.0-blue)](.claude-plugin/plugin.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8A2BE2)](#)
 [![Jira](https://img.shields.io/badge/Jira-REST_CLI-orange)](scripts/jira-cli.py)
 
-Jira 이슈 하나를 **등급 판정 → 명세·계획 → 승인 → 테스트 먼저 → 구현 → 검증 → PR**까지 Claude Code가 처리하고, 그 과정을 전부 Jira에 기록하는 플러그인입니다. 흐름은 전사 표준 [AI-native SDLC 프로세스](https://github.com/mzd-hseokkim/mzd-software-development-standard/tree/main/00-ai-native-sdlc-process)(v0.9.0b)를 따릅니다. 에이전트는 사람이 승인해야 하는 지점에서 멈추고, 이슈 여러 건을 돌리면 사람은 마지막에 **할 일 리포트**만 보고 결정합니다.
+Jira 이슈 하나를 **등급 판정 → 명세·계획 → 승인 → 테스트 먼저 → 구현 → 검증 → PR**까지 Claude Code가 처리하고, 그 과정을 전부 Jira에 기록하는 플러그인입니다. Codex CLI에도 같은 플러그인을 설치해 단계별로 쓸 수 있습니다(v0.71.0). 흐름은 전사 표준 [AI-native SDLC 프로세스](https://github.com/mzd-hseokkim/mzd-software-development-standard/tree/main/00-ai-native-sdlc-process)(v0.9.0b)를 따릅니다. 에이전트는 사람이 승인해야 하는 지점에서 멈추고, 이슈 여러 건을 돌리면 사람은 마지막에 **할 일 리포트**만 보고 결정합니다.
 
-> **English TL;DR** — A Claude Code plugin that drives a Jira issue through the company AI-native SDLC: level (L1/L2/L3) → spec/plan in `work/<KEY>/` → human approval on the PR (`APPROVE plan <sha>`, checked by script) → failing tests first → implementation in a separate session that cannot edit tests → per-acceptance-criterion verification in a fresh session → draft PR ready for the owner to request review. No local merges; merging is the code owner's. Queue issues with `/jira-task init`, run `/jira-task loop` in passes around human gates. The rest of this document is in Korean.
+> **English TL;DR** — A Claude Code plugin that drives a Jira issue through the company AI-native SDLC: level (L1/L2/L3) → spec/plan in `work/<KEY>/` → human approval on the PR (`APPROVE plan <sha>`, checked by script) → failing tests first → implementation in a separate session that cannot edit tests → per-acceptance-criterion verification in a fresh session → draft PR ready for the owner to request review. No local merges; merging is the code owner's. Queue issues with `/jira-task init`, run `/jira-task loop` in passes around human gates. The same plugin also installs into Codex CLI (step commands only; auto/loop are Claude Code only). The rest of this document is in Korean.
+
+> **기존 사용자(v0.69 이하)**: 단계 이름과 흐름이 바뀌었습니다. [v0.69 이하에서 올라올 때](#v069-이하에서-올라올-때)를 먼저 보세요.
 
 ---
 
@@ -32,7 +34,7 @@ Jira 이슈 하나를 **등급 판정 → 명세·계획 → 승인 → 테스�
 
 | 항목 | 용도 |
 |---|---|
-| Claude Code | 플러그인 실행 환경 |
+| Claude Code 또는 Codex CLI | 플러그인 실행 환경 (Codex는 [Codex에서 쓰기](#codex에서-쓰기) 참고) |
 | Python 3.10+ | `jira-cli.py`(Jira REST, 표준 라이브러리만)와 공용 스크립트 실행 |
 | Git + GitHub 원격 저장소 | 브랜치·worktree·PR. 에이전트 코드는 PR로만 들어갑니다 |
 | `gh` CLI (로그인) | draft PR 생성, 승인 확인, PR 상태 조회 |
@@ -143,7 +145,7 @@ L3: start → approach(intent) → [제품 책임자] → approach(spec) → [�
 | 머지 | 코드 오너 | ROL-003, AUT-005 |
 | 격리 태스크 처리 | 사람 | 자동으로 못 메우는 종류의 문제 |
 
-**승인은 PR 코멘트 한 줄**로 남깁니다: `APPROVE plan 3f1b7d5` (L3는 `APPROVE intent …`, `APPROVE spec …`). `scripts/sdlc-gate.py`가 작성자 계정이 승인자인지, SHA가 브랜치 이력에 있는지, 그 SHA 이후 산출물이 바뀌지 않았는지를 확인합니다. 승인 뒤 산출물을 고치면 다시 승인받아야 합니다. 에이전트는 이 형식의 글을 쓸 수 없습니다(jira-cli·hook이 거부).
+**승인은 PR 코멘트 한 줄**로 남깁니다: `APPROVE plan 3f1b7d5` (L3는 `APPROVE intent …`, `APPROVE spec …`). `scripts/sdlc-gate.py`가 작성자 계정이 승인자인지, 그 SHA 시점의 산출물이 지금(HEAD)과 같은지를 확인합니다. rebase로 SHA가 바뀌어도 내용이 같으면 승인은 유지됩니다. 승인 뒤 산출물을 고치면 다시 승인받아야 합니다. 에이전트는 이 형식의 글을 쓸 수 없습니다(jira-cli·hook이 거부).
 
 ---
 
@@ -256,7 +258,7 @@ A가 `discover`·`create`로 요구사항과 티켓을 만들고 B가 `start`/`a
 
 | 게이트 | 기준 |
 |---|---|
-| 구현 시작 (L2·L3) | `sdlc-gate.py check <KEY> plan` 통과 — 승인자 계정, SHA 이력, 이후 산출물 불변 |
+| 구현 시작 (L2·L3) | `sdlc-gate.py check <KEY> plan` 통과 — 승인자 계정, 승인 SHA 시점과 HEAD의 산출물 동일 |
 | 리뷰 요청 준비됨 | 미충족 AC 0, 검사 통과(또는 검사 없음), Critical 0. 미확인 AC는 사유와 함께 허용 |
 | fix 루프 진입 | 미충족 AC가 1건이거나 30% 이하, 그리고 Critical < 3 (아니면 스코프 누락으로 즉시 중단) |
 | fix 루프 상한 | 바깥 2회, 안쪽 센서 루프 5회 |
@@ -279,6 +281,25 @@ A가 `discover`·`create`로 요구사항과 티켓을 만들고 B가 `start`/`a
 ### 중단 후 재개
 
 모든 단계는 `.jira-context.json`의 `completedSteps`에 기록됩니다. `auto`나 `loop`를 다시 실행하면 끝난 단계는 건너뛰고, 승인 대기였던 태스크는 승인부터 다시 확인합니다.
+
+### v0.69 이하에서 올라올 때
+
+v0.70에서 흐름이 전사 표준에 맞게 바뀌었고, v0.71에서 Codex 지원이 들어왔습니다.
+
+| 예전 | 지금 |
+|---|---|
+| 등급을 issuetype으로 추정 | `start`가 L1·L2·L3를 제안하고 사람이 확정, Jira 라벨 `sdlc-L1`~`L3`로 기록 |
+| 산출물 `docs/approach/<KEY>.md` (gitignore) | `work/<KEY>/`(intent·spec·plan·evidence)를 커밋하고 Jira에도 첨부 |
+| `auto`가 계획부터 구현까지 쉬지 않고 진행 | L2·L3는 `approach` 뒤 draft PR을 열고 멈춤. 승인자가 PR에 `APPROVE plan <SHA>`를 남겨야 구현으로 넘어감 |
+| `impl` → `test` | `test-write`(실패 테스트를 먼저 커밋) → `impl`(테스트 수정 불가, hook이 막음) |
+| `review` | `verify` — 새 세션이 수용 조건마다 충족·미충족을 판정하고 `evidence/verification.md`를 남김 |
+| `merge`(로컬 병합) | 폐지. 에이전트 코드는 PR로만 들어가고, draft 해제와 머지는 사람이 함 |
+| `pr`이 PR을 만듦 | PR은 approach(L2·L3)나 impl(L1)이 draft로 만들고, `pr`은 사람이 draft를 푼 뒤 본문과 Jira 상태(검토 중)를 맞춤 |
+| `done`이 완료 처리 | GitHub에서 머지를 확인한 뒤에만 완료로 옮김 |
+| `loop`가 큐를 순서대로 처리 | 사람 게이트 단위 패스(prep·sync·plan·build), 의존 이슈는 stacked PR, 끝에 사람 할 일 리포트 |
+| Claude Code 전용 | Codex CLI에서도 단계 명령 사용 가능 ([Codex에서 쓰기](#codex에서-쓰기)) |
+
+새로 필요한 것: `gh` CLI 로그인, 프로젝트 `AGENTS.md`의 "## 승인자" 표(없으면 PR 작성자·CODEOWNERS를 인정하고 경고).
 
 v0.69 이하에서 시작한 태스크(`docs/approach/` 산출물)는 옮기지 않습니다. 구버전 흐름으로 끝내거나 `start`부터 다시 하세요.
 
@@ -484,6 +505,7 @@ CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p "/jira-task loop"
 이 플러그인의 설계와 개선 이력은 `tasks/`에 있습니다:
 
 - `tasks/sdlc-alignment-design.md` — 전사 SDLC 표준 정합(v0.70.0): 등급, 산출물, 승인 확인, 역할 분리, auto·loop 재설계
+- `tasks/harness-adapter-design.md` — Codex 지원(v0.71.0): 원본 하나, harness 차이, 실측 결과
 - `tasks/loop-engineering-roadmap.md` — 개선 로드맵 인덱스
 - `tasks/auto-workflow-design.md` — auto의 Workflow 스크립트화
 - `tasks/sensor-loop-design.md` — fix 루프의 센서 루프·delta 재검증
