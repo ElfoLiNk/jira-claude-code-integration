@@ -1,6 +1,6 @@
 # harness 어댑터 설계 — 1부 Codex
 
-> 상태: 초안 (2026-10-17). 범위 결정은 `tasks/sdlc-alignment-design.md` §2: 3단계는 어댑터만, Codex → Copilot 순서. 다른 harness에서는 단계 명령을 사람이 단계마다 새 세션으로 실행하고, auto·loop는 Claude Code 전용으로 둔다.
+> 상태: Codex 구현·실측 완료 (2026-10-17, v0.71.0). 지원 harness는 Claude Code·Codex 둘로 한다. Copilot은 계획으로만 둔다(사용자 결정 2026-10-17). 범위 결정은 `tasks/sdlc-alignment-design.md` §2: 3단계는 어댑터만, Codex → Copilot 순서. 다른 harness에서는 단계 명령을 사람이 단계마다 새 세션으로 실행하고, auto·loop는 Claude Code 전용으로 둔다.
 
 ## 1. 원칙: 원본 하나
 

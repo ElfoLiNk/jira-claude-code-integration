@@ -28,7 +28,7 @@
 - 팀 GitHub 머지 방식은 rebase merge.
 - L2 plan 승인은 PR 코멘트로 받는다.
 - 헤드리스 runner는 P0에서 빼고 3단계로 미룬다. P0의 세션 분리는 auto의 sub-agent + `activeRole` 표시로 한다.
-- (2026-10-17) 3단계는 harness 어댑터만 한다. Codex → Copilot 순서로 하나씩. 다른 harness에서는 단계 명령을 사람이 단계마다 새 세션으로 실행한다(세션 분리 충족). runner는 다른 harness에서 auto·loop 같은 연속 실행이 필요해질 때 선택 과제로 다룬다.
+- (2026-10-17) 3단계는 harness 어댑터만 한다. Codex → Copilot 순서로 하나씩. (같은 날 추가 결정) 지원은 Claude Code·Codex 둘만, Copilot은 계획으로만 둔다. 다른 harness에서는 단계 명령을 사람이 단계마다 새 세션으로 실행한다(세션 분리 충족). runner는 다른 harness에서 auto·loop 같은 연속 실행이 필요해질 때 선택 과제로 다룬다.
 - §12의 네 가지는 제안대로 확정.
 
 ## 3. 원칙
