@@ -297,7 +297,7 @@ v0.70에서 흐름이 전사 표준에 맞게 바뀌었고, v0.71에서 Codex �
 | `pr`이 PR을 만듦 | PR은 approach(L2·L3)나 impl(L1)이 draft로 만들고, `pr`은 사람이 draft를 푼 뒤 본문과 Jira 상태(검토 중)를 맞춤 |
 | `done`이 완료 처리 | GitHub에서 머지를 확인한 뒤에만 완료로 옮김 |
 | `loop`가 큐를 순서대로 처리 | 사람 게이트 단위 패스(prep·sync·plan·build), 의존 이슈는 stacked PR, 끝에 사람 할 일 리포트 |
-| Claude Code 전용 | Codex CLI에서도 단계 명령 사용 가능 ([Codex에서 쓰기](#codex에서-쓰기)) |
+| Claude Code 전용 | Codex CLI에서도 단계 명령과 auto 사용 가능 ([Codex에서 쓰기](#codex에서-쓰기)) |
 
 새로 필요한 것: `gh` CLI 로그인, 프로젝트 `AGENTS.md`의 "## 승인자" 표(없으면 PR 작성자·CODEOWNERS를 인정하고 경고).
 
@@ -409,14 +409,19 @@ Windows에서 `[windows] sandbox = "elevated"`가 초기 설정에 실패하면(
 
 **사용.** 단계 스킬을 직접 부릅니다. 예: `$jira-task-start MAE-101`. TASK-ID를 빼면 브랜치(`feature/<KEY>`)에서 찾습니다. 표준의 세션 분리를 지키려면 **test-write, impl, verify는 각각 새 Codex 세션**에서 실행합니다. verify는 같은 세션에서 구현했으면 검증하지 않고 새 세션을 요구합니다.
 
-**auto.** Codex에는 Workflow 도구가 없어서 auto는 터미널에서 runner로 돌립니다. 등급을 먼저 확정한 뒤(`$jira-task-start`) worktree에서 실행합니다. `$jira-task-auto`를 부르면 이 명령을 경로까지 채워 알려줍니다.
+**auto.** Codex에는 Workflow 도구가 없어서 auto는 터미널에서 runner로 돌립니다. Codex 세션 안에서 바로 돌리지 않는 이유는 태스크 하나가 10분 안팎 걸려 세션의 셸 명령으로 돌리기엔 길기 때문입니다. `$jira-task-auto`를 부르면 실행할 명령을 경로까지 채워 알려주고 멈춥니다.
+
+1. Codex 세션에서 `$jira-task-start MAE-101`로 등급을 확정합니다(auto는 등급을 묻지 않습니다).
+2. 일반 터미널에서 worktree로 가서 runner를 실행합니다. 플러그인 경로는 `~/.codex/plugins/cache/jira-claude-code-integration/jira-integration/<버전>`입니다.
 
 ```bash
 cd ../<project>_worktree/MAE-101
-node "<플러그인>/scripts/auto-codex.js" MAE-101
+node "<플러그인>/scripts/auto-codex.js" MAE-101 --bypass-hook-trust
 ```
 
-Claude Code의 auto와 같은 스크립트(`auto.workflow.js`)로 같은 지점(승인 대기, 리뷰 요청 준비됨)에서 멈춥니다. 단계마다 새 `codex exec` 세션을 `danger-full-access`로 띄우고, Claude 모델 등급은 추론 강도로 옮깁니다(haiku→low, sonnet→medium, opus→high). 모델은 Codex 설정을 따르며 `--model <이름>`으로 바꿀 수 있습니다. 보호 hook을 trust하지 않았다면 `--bypass-hook-trust`를 붙여야 구현 단계의 테스트 수정 차단이 동작합니다(이 옵션은 활성화된 다른 hook도 함께 실행합니다). 단계별 Codex 로그는 시작할 때 출력되는 임시 디렉터리에 남습니다.
+3. 승인 대기(L2·L3)로 멈췄다면 승인자가 PR에 승인을 남긴 뒤 같은 명령을 다시 실행합니다. 끝난 단계는 건너뛰고 이어서 진행합니다. 중간에 실패했을 때도 원인을 고치고 다시 실행하면 됩니다.
+
+Claude Code의 auto와 같은 스크립트(`auto.workflow.js`)로 같은 지점(승인 대기, 리뷰 요청 준비됨)에서 멈춥니다. 단계마다 새 `codex exec` 세션을 `danger-full-access`로 띄우고, Claude 모델 등급은 추론 강도로 옮깁니다(haiku→low, sonnet→medium, opus→high). 모델은 Codex 설정을 따르며 `--model <이름>`으로 바꿀 수 있습니다. 보호 hook을 trust하지 않았다면 `--bypass-hook-trust`를 붙여야 구현 단계의 테스트 수정 차단이 동작합니다(이 옵션은 활성화된 다른 hook도 함께 실행합니다). 단계별 Codex 로그는 시작할 때 출력되는 임시 디렉터리에 남습니다. 사용량은 본인 Codex 계정으로 잡히고, L1 한 건이 약 16만~18만 토큰입니다(mock 실측).
 
 ### headless 실행 (`claude -p`)
 

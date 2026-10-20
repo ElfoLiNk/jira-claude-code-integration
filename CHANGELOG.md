@@ -2,6 +2,11 @@
 
 `jira-integration` 플러그인의 주요 변경 이력입니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를, 버전은 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다. 자잘한 패치가 이어진 구간은 버전 범위로 묶어 요약했습니다.
 
+## [Unreleased]
+
+### Changed
+- README Codex 절에 auto 사용 순서(등급 확정 → 터미널에서 runner → 승인 후 재실행)와 사용량을 적었다.
+
 ## [0.72.0] - 2026-10-20
 
 ### Added
