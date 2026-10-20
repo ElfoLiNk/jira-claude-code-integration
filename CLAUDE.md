@@ -6,7 +6,7 @@
 
 - **Surgical Changes**: 요청과 직접 관련된 라인만 수정. 인접 코드 "개선"/포맷팅 변경 금지. 본인의 변경으로 생긴 orphan import/변수만 정리하고, 기존 dead code는 건드리지 않는다.
 - **Simplicity First**: 요청되지 않은 추상화/설정 옵션/방어 코드 추가 금지. 스킬은 prompt 마크다운이므로 분량이 곧 토큰 비용이다.
-- **버전 동기화**: 스킬/훅/스크립트/설정이 바뀌면 `.claude-plugin/plugin.json`의 `version`도 반드시 함께 올린다 (안 올리면 마켓플레이스 업데이트가 감지 안 됨).
+- **버전 동기화**: 스킬/훅/스크립트/설정이 바뀌면 `.claude-plugin/plugin.json`의 `version`도 반드시 함께 올린다 (안 올리면 마켓플레이스 업데이트가 감지 안 됨). 같은 변경에서 `CHANGELOG.md`에 그 버전 섹션(Added/Changed/Fixed/Removed, 사용자 관점 한국어)을 추가한다. bump 없는 커밋은 `[Unreleased]`에 적고 다음 bump 때 그 버전으로 옮긴다.
 
 ## Repository Layout
 
@@ -46,7 +46,7 @@ atlassian MCP 서버는 **선택**(`/jira setup --mcp`, 대화 중 ad-hoc 질의
     `status="-"`는 status/cachedIssue.status를 그대로 보존(Jira transition 없는 record-only 단계용). `--patch`로 `level`·`riskSignals`·`stackedOn`(aggregate에도 반영)과 `activeRole`·`planApproval` 등(worktree만)을 기록하고, 값이 `null`이면 키를 지운다. 표준 호출 스니펫: `skills/_shared/context-update.md`.
   - `sdlc-gate.py` (approach/test-write/pr/done/loop): 산출물 승인(`check <KEY> <intent|spec|plan>`)과 PR 상태(`pr-state <KEY>`)를 GitHub·git 사실로 판정한다. 승인을 LLM이 판단하지 않는다 — 스킬은 exit code와 JSON만 따른다. 승인 형식·판정 규칙은 스크립트 docstring, 설계는 `tasks/sdlc-alignment-design.md` §6.
   - `ensure-workflow-dir.py`(setup, auto 실패 시): 플러그인 설치 경로를 사용자 settings.json의 `permissions.additionalDirectories`에 등록. Workflow 도구가 `scriptPath`를 cwd·추가 디렉터리 안의 파일로 제한하므로 auto의 전제 조건이다.
-  - 그 외: `propagate-mcp-config.sh`(init), `append-review-log-wrapper.sh`(verify), `cleanup-worktree-mcp.py`(done), `auto.workflow.js`(auto — Workflow `scriptPath`로 실행, bash 호출 아님), `append-run-log.py`(auto — 실행 결과를 `docs/run-log/_index.jsonl`에 기록), `detect-lint.sh`(impl/verify/fix — 선언된 lint/format 도구 판정 1회 호출).
+  - 그 외: `propagate-mcp-config.sh`(init), `append-review-log-wrapper.sh`(verify), `cleanup-worktree-mcp.py`(done), `auto.workflow.js`(auto — Workflow `scriptPath`로 실행, bash 호출 아님), `auto-codex.js`(Codex auto — 같은 `auto.workflow.js`를 로드해 `agent()`를 단계마다 `codex exec`로 대신하는 runner, 사용자가 터미널에서 실행), `append-run-log.py`(auto — 실행 결과를 `docs/run-log/_index.jsonl`에 기록), `detect-lint.sh`(impl/verify/fix — 선언된 lint/format 도구 판정 1회 호출).
   - `clean-worktree.py`(clean): **worktree 삭제의 유일한 경로.** `git worktree remove`는 Windows에서 worktree 안의 junction/dir symlink를 따라 들어가 대상(메인 레포 `node_modules` → workspace 링크 → `packages/**`)까지 지운다 — `--force` 없이도, 실측 git 2.53 (2026-08-26). 스크립트는 링크를 먼저 끊고 0개 검증 후에만 git을 호출하며, 메인 레포 tracked 파일 소실을 사후 감지한다. 스킬·에이전트가 `git worktree remove`/재귀 삭제를 직접 실행하지 않도록 `hooks/scripts/guard-worktree-remove.js`(PreToolUse)가 Bash/PowerShell의 `git worktree remove`를 거부한다. 회귀 테스트: `tests/test_clean_worktree_links.py`. dashboard `routes/cleanup.js`도 동일 순서.
   - **auto 경유 시 lookup 생략**: auto launcher가 `scriptsDir`를 Workflow args로 넘기고 stage prompt가 절대 경로를 제시한다. 스킬 본문의 lookup 블록은 "prompt에 경로가 없을 때만" 실행 (호출 1회 ≈ 10초 — 의식 호출 최소화 원칙).
 
