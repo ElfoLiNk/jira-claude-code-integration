@@ -27,7 +27,8 @@
 | PR 본문 "작성 `Claude Code`", verify 서명 | — | 실행 중인 harness·모델 이름을 넣는다 |
 | 스킬의 "프로젝트 CLAUDE.md의 Conventions 참고" | 사용자 프로젝트에 없는 파일을 가리킴(기존 결함) | `skills/_shared/` 공용 문서 참조로 |
 | SessionStart·Stop·대시보드 ingest hook | 이벤트 이름은 같으나 transcript 형식이 다름 | 실패해도 exit 0인지 확인만, 대시보드는 Codex 미지원으로 둔다 |
-| auto·loop(Workflow, EnterWorktree) | 없음 | 범위 밖. Codex에서 호출하면 "Claude Code 전용" 안내 후 멈춤 |
+| auto(Workflow, sub-agent) | 없음 | runner `scripts/auto-codex.js`(§6, v0.72.0) |
+| loop(Workflow, EnterWorktree) | 없음 | 범위 밖. Codex에서 호출하면 "Claude Code 전용" 안내 후 멈춤 |
 
 ## 3. 항목별 설계
 
@@ -99,3 +100,19 @@ Codex 실행(`codex exec`)은 사용자 Codex 계정으로 과금된다. 샌드�
 5. README Codex 절(설치, hook trust, 권한), 플러그인 `AGENTS.md`를 CLAUDE.md 지시로 교체
 6. 실측(§4) → 결함 수정
 7. 기존 이식본(`~/plugins/jira-claude-code-integration`, `personal` 마켓플레이스) 정리는 사용자 확인 후
+
+## 6. Codex auto runner (v0.72.0)
+
+사용자 결정(2026-10-20): auto는 Codex에서도 지원하고 loop·대시보드는 제외한다.
+
+- **제어 흐름은 하나.** `scripts/auto-codex.js`가 `auto.workflow.js`를 읽어 `export const meta`만 걷어내고 async 함수 본문으로 실행한다. `args`·`agent`·`log`는 runner가 주입한다. 단계 순서·게이트·triage·fix loop를 두 벌로 두지 않는다.
+- **`agent()` = 새 `codex exec` 프로세스.** `-C <worktree>`, `-s danger-full-access -c approval_policy=never`(단계마다 커밋·push·네트워크, §3.6), `--output-schema`(스키마 강제 반환)와 `-o`(마지막 메시지 파일). 프롬프트는 stdin. 단계마다 새 세션이라 test-write·impl·verify의 컨텍스트 분리는 Claude Code와 같다.
+- **스키마.** codex `--output-schema`는 strict 형식(모든 키 required, `additionalProperties: false`)만 받는다. runner가 선택 키를 null 허용으로 바꿔 넣는다(`strictify`). 결과 JSON이 없거나 exit≠0이면 `agent()`가 null → 스크립트의 "결과 없이 종료됨" 중단.
+- **프롬프트.** `args.harness = 'codex'`일 때만 세 곳이 바뀐다: 스킬 호출(`$jira-task-<step>`의 SKILL.md를 읽고 수행), 셸 규칙(Bash/PowerShell 도구 구분 제거), 반환 지시(StructuredOutput → 스키마에 맞는 JSON 하나). Claude Code 경로의 프롬프트는 문구 하나("Skill을 호출한다 (인자: …)") 외에 그대로다.
+- **모델.** Claude 모델 이름은 추론 강도로 옮긴다: haiku→low, sonnet→medium, opus→high. 모델은 사용자 Codex 설정을 따르고 `--model`로 덮어쓴다.
+- **launcher 몫.** 등급 확정은 사람 질문이 필요하므로 runner가 하지 않는다. context `level`이나 `cachedIssue.labels`의 `sdlc-L*`가 없으면 codex를 부르지 않고 `$jira-task-start`를 안내한다(exit 2). 결과 렌더링과 run-log 기록(`append-run-log.py`)은 runner가 한다.
+- **실행 위치.** Codex 세션의 셸 명령은 긴 프로세스에 맞지 않아 사용자가 worktree 터미널에서 직접 실행한다. `$jira-task-auto`는 명령을 안내하고 멈춘다.
+- **hook trust.** `codex exec`는 trust된 hook만 실행한다. trust 전이면 `--bypass-hook-trust`(→ `--dangerously-bypass-hook-trust`)로 보호 hook을 켠다. 활성화된 다른 hook도 함께 돌기 때문에 기본값으로 두지 않는다.
+- **검증.** `tests/auto-codex.test.js`(가짜 codex `tests/fixtures/fake-codex.js`): L1 전 단계, fix loop, L2 승인 대기, 등급 미확정, worktree 불일치. 실측: codex-cli 0.162.1에서 strict 스키마 + `approval_policy=never` + `-o` 조합으로 결과 JSON 반환, 플러그인 hook 실행 확인.
+- **실측 (2026-10-20, mock Jira + 가짜 gh, `--bypass-hook-trust`, 설치 스킬 0.71.0 + 저장소 scripts 0.72.0).** DEMO-1(L1): start → test-write → impl → verify 한 번에 `completed`(AC 3/3, 518초, 약 16만 토큰). DEMO-2(L2): 1회차 approach 뒤 `awaiting_approval` → 승인권자 `APPROVE plan <sha>` → 2회차 test-write가 승인 확인 통과 → `completed`(AC 3/3). 커밋 순서(test → feat), 두 context의 completedSteps, PR draft 유지, run-log 3줄 확인. verify 세션의 `apply_patch`가 `guard-test-files.js`에 막혀 hook이 `codex exec`에서 동작함을 확인.
+- **실측에서 고친 것.** ① verifier 역할의 `guard-test-files.js`가 Edit·`apply_patch`로 worktree 밖 임시 파일을 쓰는 것까지 막아 `pr-body.md`의 `--body-file` 경로가 막혔다(셸은 이미 제외) → 저장소 밖 경로 제외를 모든 도구에 적용. ② 세션마다 Stop hook 1건 실패 — `stop-sync.js`가 Stop 출력 규격에 없는 최상위 `additionalContext`를 내보내 Codex가 실패로 처리했다(출력 없는 상태에서는 성공, 실측으로 대조). Claude Code에서도 무시되던 출력이라 hook을 제거했다. ③ Windows에서 python `subprocess.run(["gh"])`는 `.cmd`를 못 찾으므로 가짜 gh는 `.exe` shim이 필요했다(테스트 환경 한정).

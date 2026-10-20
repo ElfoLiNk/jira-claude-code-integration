@@ -30,4 +30,5 @@ context `cachedIssue.key === <TASK-ID>`이고 `fetchedAt`이 있으면 그 값�
 | 임시 파일(`<scratchpad>`) | 세션 scratchpad | OS 임시 디렉터리(`python3 -c "import tempfile;print(tempfile.gettempdir())"`). 레포 안에 만들지 않는다 |
 | 다음 단계 안내(`/jira-task <action> <KEY>`) | 그대로 | `$jira-task-<action> <KEY>` |
 | 작성 도구 기록(PR 본문, 검증 서명) | `Claude Code` | 지금 실행 중인 harness 이름(예: `Codex`) |
-| auto·loop | 지원 | 지원 안 함. 단계 스킬을 단계마다 새 세션에서 실행한다 |
+| auto | Workflow | worktree 터미널에서 `node <scriptsDir>/auto-codex.js <KEY>` (단계마다 새 `codex exec`) |
+| loop | 지원 | 지원 안 함. 태스크마다 auto나 단계 스킬을 쓴다 |

@@ -14,7 +14,12 @@ allowed-tools:
 
 **공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
-**Claude Code 전용**: Workflow·sub-agent·EnterWorktree가 필요하다. 이 도구가 없는 harness(Codex 등)에서 호출되면 아무것도 바꾸지 말고 "auto·loop는 Claude Code 전용입니다. 단계 스킬을 단계마다 새 세션에서 실행하세요(start → approach → test-write → impl → verify → pr)."라고 안내하고 멈춘다.
+**Codex 등 Workflow 도구가 없는 harness**: Step 1~3(등급은 텍스트로 묻는다)까지만 하고 Workflow를 부르지 않는다. 대신 worktree 터미널에서 runner를 실행하라고 안내하고 멈춘다 — runner가 같은 `auto.workflow.js`를 단계마다 새 `codex exec` 세션으로 돌리고 결과 렌더링·run-log까지 한다(설계: `tasks/harness-adapter-design.md` §6):
+```
+cd <worktreePath>
+node "<scriptsDir>/auto-codex.js" <TASK-ID>
+```
+보호 hook을 `/hooks`에서 trust하지 않았으면 `--bypass-hook-trust`를 붙여야 테스트 보호가 동작한다고 함께 알린다.
 
 ## Overview
 

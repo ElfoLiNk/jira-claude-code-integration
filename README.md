@@ -7,7 +7,7 @@
 
 Jira 이슈 하나를 **등급 판정 → 명세·계획 → 승인 → 테스트 먼저 → 구현 → 검증 → PR**까지 Claude Code가 처리하고, 그 과정을 전부 Jira에 기록하는 플러그인입니다. Codex CLI에도 같은 플러그인을 설치해 단계별로 쓸 수 있습니다(v0.71.0). 흐름은 전사 표준 [AI-native SDLC 프로세스](https://github.com/mzd-hseokkim/mzd-software-development-standard/tree/main/00-ai-native-sdlc-process)(v0.9.0b)를 따릅니다. 에이전트는 사람이 승인해야 하는 지점에서 멈추고, 이슈 여러 건을 돌리면 사람은 마지막에 **할 일 리포트**만 보고 결정합니다.
 
-> **English TL;DR** — A Claude Code plugin that drives a Jira issue through the company AI-native SDLC: level (L1/L2/L3) → spec/plan in `work/<KEY>/` → human approval on the PR (`APPROVE plan <sha>`, checked by script) → failing tests first → implementation in a separate session that cannot edit tests → per-acceptance-criterion verification in a fresh session → draft PR ready for the owner to request review. No local merges; merging is the code owner's. Queue issues with `/jira-task init`, run `/jira-task loop` in passes around human gates. The same plugin also installs into Codex CLI (step commands only; auto/loop are Claude Code only). The rest of this document is in Korean.
+> **English TL;DR** — A Claude Code plugin that drives a Jira issue through the company AI-native SDLC: level (L1/L2/L3) → spec/plan in `work/<KEY>/` → human approval on the PR (`APPROVE plan <sha>`, checked by script) → failing tests first → implementation in a separate session that cannot edit tests → per-acceptance-criterion verification in a fresh session → draft PR ready for the owner to request review. No local merges; merging is the code owner's. Queue issues with `/jira-task init`, run `/jira-task loop` in passes around human gates. The same plugin also installs into Codex CLI (step commands, plus auto via `scripts/auto-codex.js`; loop and the dashboard are Claude Code only). The rest of this document is in Korean.
 
 > **기존 사용자(v0.69 이하)**: 단계 이름과 흐름이 바뀌었습니다. [v0.69 이하에서 올라올 때](#v069-이하에서-올라올-때)를 먼저 보세요.
 
@@ -389,7 +389,7 @@ python3 <plugin>/scripts/ensure-workflow-dir.py    # ~/.claude/settings.json의 
 
 ### Codex에서 쓰기
 
-같은 플러그인을 Codex CLI에도 설치할 수 있습니다. 단계 명령은 같고, auto·loop·대시보드는 Claude Code 전용입니다.
+같은 플러그인을 Codex CLI에도 설치할 수 있습니다. 단계 명령과 auto는 쓸 수 있고, loop·대시보드는 Claude Code 전용입니다.
 
 ```bash
 codex plugin marketplace add https://github.com/mzd-hseokkim/jira-claude-code-integration
@@ -408,6 +408,15 @@ codex plugin add jira-integration@jira-claude-code-integration
 Windows에서 `[windows] sandbox = "elevated"`가 초기 설정에 실패하면(`setup refresh had errors`) 셸과 파일 쓰기가 모두 거부됩니다. 이때는 Codex를 대화형으로 한 번 실행해 설정을 마치거나 `"unelevated"`로 바꿉니다.
 
 **사용.** 단계 스킬을 직접 부릅니다. 예: `$jira-task-start MAE-101`. TASK-ID를 빼면 브랜치(`feature/<KEY>`)에서 찾습니다. 표준의 세션 분리를 지키려면 **test-write, impl, verify는 각각 새 Codex 세션**에서 실행합니다. verify는 같은 세션에서 구현했으면 검증하지 않고 새 세션을 요구합니다.
+
+**auto.** Codex에는 Workflow 도구가 없어서 auto는 터미널에서 runner로 돌립니다. 등급을 먼저 확정한 뒤(`$jira-task-start`) worktree에서 실행합니다. `$jira-task-auto`를 부르면 이 명령을 경로까지 채워 알려줍니다.
+
+```bash
+cd ../<project>_worktree/MAE-101
+node "<플러그인>/scripts/auto-codex.js" MAE-101
+```
+
+Claude Code의 auto와 같은 스크립트(`auto.workflow.js`)로 같은 지점(승인 대기, 리뷰 요청 준비됨)에서 멈춥니다. 단계마다 새 `codex exec` 세션을 `danger-full-access`로 띄우고, Claude 모델 등급은 추론 강도로 옮깁니다(haiku→low, sonnet→medium, opus→high). 모델은 Codex 설정을 따르며 `--model <이름>`으로 바꿀 수 있습니다. 보호 hook을 trust하지 않았다면 `--bypass-hook-trust`를 붙여야 구현 단계의 테스트 수정 차단이 동작합니다(이 옵션은 활성화된 다른 hook도 함께 실행합니다). 단계별 Codex 로그는 시작할 때 출력되는 임시 디렉터리에 남습니다.
 
 ### headless 실행 (`claude -p`)
 

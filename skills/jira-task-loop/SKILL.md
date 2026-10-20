@@ -17,7 +17,7 @@ allowed-tools:
 
 **공용 규약**: `skills/_shared/conventions.md`를 먼저 Read한다 — 언어, TASK-ID 감지, harness 차이 (한국어 출력, Jira 코멘트 제목은 영어).
 
-**Claude Code 전용**: Workflow·sub-agent·EnterWorktree가 필요하다. 이 도구가 없는 harness(Codex 등)에서 호출되면 아무것도 바꾸지 말고 "auto·loop는 Claude Code 전용입니다. 단계 스킬을 단계마다 새 세션에서 실행하세요(start → approach → test-write → impl → verify → pr)."라고 안내하고 멈춘다.
+**Claude Code 전용**: Workflow·sub-agent·EnterWorktree가 필요하다. 이 도구가 없는 harness(Codex 등)에서 호출되면 아무것도 바꾸지 말고 "loop는 Claude Code 전용입니다. 태스크마다 `$jira-task-auto <TASK-ID>`를 쓰거나 단계 스킬을 단계마다 새 세션에서 실행하세요(start → approach → test-write → impl → verify → pr)."라고 안내하고 멈춘다.
 
 ## Overview
 

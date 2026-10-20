@@ -24,8 +24,10 @@ const {
   level: initialLevel = null,   // launcher가 확정한 등급 (context level)
   ctxFiles = [],
   scriptsDir = null,            // 플러그인 scripts/ 절대 경로 — launcher가 lookup을 1회 끝내고 넘긴다
+  harness = 'claude-code',      // 'codex'면 scripts/auto-codex.js가 agent()를 codex exec로 대신한다
 } = args
 
+const codex = harness === 'codex'
 const worktreeCtx = ctxFiles[0] || `${worktreePath}/.jira-context.json`
 const done = new Set(completedSteps)
 let level = initialLevel
@@ -114,7 +116,9 @@ const guardHeader = [
   `cwdVerified=false, result=failed, failureReason="cwd mismatch"로 즉시 반환하라. 일치하면 cwdVerified=true.`,
   ``,
   `호출 비용 규칙 (도구 호출 1회 ≈ 10초 — 의식 호출을 줄여라):`,
-  `- 셸 명령은 Bash 도구만 쓴다. PowerShell 도구·즉석 스크립트 작성 금지.`,
+  codex
+    ? `- 즉석 스크립트 작성 금지. 스킬의 명령을 그대로 실행한다.`
+    : `- 셸 명령은 Bash 도구만 쓴다. PowerShell 도구·즉석 스크립트 작성 금지.`,
   scriptsDir
     ? `- 플러그인 스크립트는 전부 "${scriptsDir}/" 아래에 있다 (jira-cli.py, jira-context-update.py, sdlc-gate.py, append-review-log-wrapper.sh, detect-lint.sh). Skill 본문의 script-lookup.md Read·lookup 블록·ls 확인을 전부 생략하고 이 절대 경로를 바로 쓴다.`
     : `- 플러그인 스크립트는 Skill 본문의 script-lookup 규약으로 1회만 해석한다.`,
@@ -124,10 +128,17 @@ const guardHeader = [
 ].join('\n')
 
 const returnFooter = [
-  `완료 후 StructuredOutput으로만 결과를 반환하라:`,
+  codex
+    ? `완료 후 최종 응답으로 출력 스키마에 맞는 JSON 객체 하나만 쓴다:`
+    : `완료 후 StructuredOutput으로만 결과를 반환하라:`,
   `- completedStepsAfter에는 jira-context-update.py 실행 출력의 \`completedSteps=[...]\` 값을 그대로 옮겨 적는다 (파일 재-Read 금지, 기억에 의존 금지). 이번에 context를 갱신하지 않았으면 Skill 시작 시 읽은 값.`,
   `- 산출물 본문(spec·plan 내용, 코드 diff, 테스트 로그)을 반환하지 마라 — 부모 컨텍스트 오염 방지.`,
 ].join('\n')
+
+const skillCall = (step) =>
+  codex
+    ? `\`$jira-task-${step}\` 스킬(jira-integration:jira-task-${step})의 SKILL.md를 읽고 인자 "${taskId}"로 수행한다`
+    : `\`jira-integration:jira-task-${step}\` Skill을 호출한다 (인자: "${taskId}")`
 
 function skillStagePrompt(step, extra = '') {
   return [
@@ -135,7 +146,7 @@ function skillStagePrompt(step, extra = '') {
     ``,
     `Jira task ${taskId}의 ${step} 단계를 수행하라.`,
     ``,
-    `1. \`jira-integration:jira-task-${step}\` Skill을 호출한다 (인자: "${taskId}").`,
+    `1. ${skillCall(step)}.`,
     `2. Skill이 정의한 모든 단계를 그대로 수행한다.`,
     extra,
     ``,
@@ -265,7 +276,7 @@ function verifyPrompt(delta) {
     delta
       ? `이번 검증은 fix loop 재검증이다. [verify-delta-mode] 규칙(verifier-mode.md)에 따라 직전 미충족·미확인 AC, Critical, fixSelfCheck.files의 diff를 재검증하고 검사 명령을 1회 다시 실행한다.`
       : ``,
-    `Jira task ${taskId}의 verify 단계를 수행하라. \`jira-integration:jira-task-verify\` Skill을 인자 "${taskId}"로 호출한다.`,
+    `Jira task ${taskId}의 verify 단계를 수행하라. ${skillCall('verify')}.`,
     `본 wrapper는 구현과 분리된 새 컨텍스트이고 추가 Agent 권한이 없다 — [verify-self-mode]에 따라 Skill Step 2를 직접 수행한다. 코드를 고치지 않는다.`,
     ``,
     `verify-metrics 블록 값을 metrics로 반환하라.`,
