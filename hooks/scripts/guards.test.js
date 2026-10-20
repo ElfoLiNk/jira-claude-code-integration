@@ -94,3 +94,12 @@ test('T7: Codex apply_patch는 패치 헤더의 경로로 판정', () => {
   assert.equal(run('guard-test-files.js', patch('*** Add File: work/K-1/evidence/verification.md\n+x', v)), 'allow');
   assert.equal(run('guard-test-files.js', patch('*** Update File: src/order.py\n@@\n-a\n+b', v)), 'deny');
 });
+
+test('T8: 저장소 밖 임시 파일(PR 본문)은 어떤 도구로든 판정하지 않음', () => {
+  const v = workdir('verifier');
+  const tmp = path.join(os.tmpdir(), 'pr-body-K-1.md');
+  assert.equal(run('guard-test-files.js', edit(tmp, v)), 'allow');
+  assert.equal(run('guard-test-files.js', { tool_name: 'apply_patch', tool_input: { command: `*** Begin Patch\n*** Add File: ${tmp}\n+x\n*** End Patch` }, cwd: v }), 'allow');
+  const i = workdir('implementer');
+  assert.equal(run('guard-test-files.js', edit(path.join(os.tmpdir(), 'tests', 'test_x.py'), i)), 'allow');
+});

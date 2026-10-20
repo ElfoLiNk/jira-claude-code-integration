@@ -59,23 +59,25 @@ function isTestFile(r) {
   return !r.startsWith('work/') && TEST_FILE.some((re) => re.test(r));
 }
 
+// 저장소 밖(/tmp, scratchpad 등)은 판정 대상이 아니다 — PR 본문 임시 파일(pr-body.md)이 여기 쓰인다
+const inside = (r) => r !== '..' && !r.startsWith('../') && !path.isAbsolute(r);
+
 function targets(input, cwd) {
   const ti = input.tool_input || {};
   if (EDIT_TOOLS.has(input.tool_name)) {
     const p = ti.file_path || ti.notebook_path;
-    return p ? [rel(cwd, p)] : [];
+    return p ? [rel(cwd, p)].filter(inside) : [];
   }
   if (input.tool_name === 'apply_patch') {
     // Codex: 편집 대상은 패치 본문의 파일 헤더에만 있다
-    return [...(ti.command || '').matchAll(PATCH_TARGET)].map((m) => rel(cwd, m[1].trim()));
+    return [...(ti.command || '').matchAll(PATCH_TARGET)].map((m) => rel(cwd, m[1].trim())).filter(inside);
   }
   if (input.tool_name !== 'Bash' && input.tool_name !== 'PowerShell') return [];
   const out = [];
   for (const re of SHELL_TARGETS) {
     for (const m of (ti.command || '').matchAll(re)) {
       const r = rel(cwd, m[1]);
-      // 저장소 밖(/tmp 등)과 /dev/null은 판정 대상이 아니다
-      if (!r.startsWith('../') && !path.isAbsolute(r) && m[1] !== '/dev/null' && m[1] !== '$null') out.push(r);
+      if (inside(r) && m[1] !== '/dev/null' && m[1] !== '$null') out.push(r);
     }
   }
   return out;
